@@ -1,0 +1,412 @@
+Q7 – Diagnose, Redesign and Validate (13 Marks)
+Bloom's Level: K5 – Evaluate
+Selected solution: Q5 – Generic Ranking Component
+For Q7, I have selected the Generic Leaderboard using Comparator from Q5.
+
+The reason for selecting this solution is that the original implementation creates a new list and sorts all elements every time the ranking() method is called. If the leaderboard contains thousands of teams and users request rankings repeatedly, the same sorting work is performed unnecessarily.
+
+The redesign will use a Cached Ranking Strategy. It will sort the teams only when the data changes and reuse the sorted result for subsequent ranking requests.
+
+This changes the design based on the actual bottleneck instead of simply replacing one collection with another.
+
+A. Diagnose the Bottleneck – 2 Marks
+1. Original implementation
+In Q5, the original ranking() method was:
+List<T> ranking() {
+    List<T> result = new ArrayList<>(items);
+    result.sort(order);
+    return result;
+}
+
+
+2. Identified limitations
+1. Every call to ranking() creates a new ArrayList.
+2. Every call copies all the existing team objects into the new list.
+3. The entire list is sorted again, even when no team has been added or modified.
+4. Sorting requires O(n log n) time.
+5. Repeated requests increase execution time and temporary memory allocation.
+3. Bottleneck analysis
+Suppose a leaderboard contains 10,000 teams and the ranking is requested 100 times without changing the data.
+Operation	Original implementation
+Number of teams	10,000
+Number of ranking requests	100
+Sorting operations	100
+Approximate sorting work	100 × n log₂ n
+New list creations	100
+
+Identified bottleneck
+ Repeated copying and sorting of unchanged data.
+
+Diagnosis: The main limitation is not the comparator. It is the repeated execution of the sorting operation inside the ranking() method.
+B. Define the Design Objective – 2 Marks
+The redesigned system should achieve the following objectives:
+1. Avoid sorting the leaderboard repeatedly when data has not changed.
+2. Reduce unnecessary creation of temporary lists.
+3. Maintain the same ranking rules as the original implementation.
+4. Update the ranking whenever a new team is added.
+5. Return the correct ranking for every request.
+Measurable objective
+For 100 consecutive ranking requests without any updates:
+Measurement	Original	Redesigned target
+Sorting operations	100	1
+Full-list copying	100	0 after initial cache creation
+Sorting time	100 sorts	1 sort
+Ranking retrieval after cache creation	O(n log n)	O(1) for cached view
+
+The target is to reduce the number of sorting operations from 100 to 1 when no updates occur.
+
+C. Design the Revised Solution – 4 Marks
+1. Proposed redesign: Cached Leaderboard
+The redesigned system maintains a cached sorted list.
+
+It uses a Boolean variable called dirty.
+- dirty = true: The leaderboard has changed and needs sorting.
+- dirty = false: The cached ranking is already correct.
+When a team is added, the system marks the cache as dirty.
+
+When ranking is requested:
+1. Check whether the cache is dirty.
+2. If dirty, copy the original list and sort it.
+3. Store the sorted result in the cache.
+4. Set dirty to false.
+5. If the cache is already valid, return the cached result without sorting again.
+2. Revised architecture
+Original Team List
+
+Stores all teams
+
+Dirty Flag Check
+
+Has the data changed?
+
+YES
+
+Copy and sort list
+
+
+NO
+
+Reuse cached ranking
+
+
+
+Cached Sorted Ranking
+
+Return ranking without sorting again
+
+
+3. Revised pseudocode
+START
+
+Create original team list
+Create cached ranking list
+Set dirty = true
+
+FUNCTION add(team):
+    Add team to original list
+    Set dirty = true
+
+FUNCTION ranking():
+
+    IF dirty is true:
+        Copy original list
+        Sort copied list using comparator
+        Store sorted list in cache
+        Set dirty = false
+
+    Return unmodifiable cached ranking
+
+STOP
+
+
+4. What has changed?
+Feature	Original design	Revised design
+Sorting	Every request	Only after changes
+Copying	Every request	Only when cache is rebuilt
+Cache	Not available	Available
+Dirty flag	Not available	Used
+Correctness	Comparator	Same comparator
+Additional memory	Temporary copy	Persistent cached copy
+
+Trade-off: The redesigned system uses additional memory to store the cached ranking. Also, after every update, the next ranking request must rebuild the cache. This is beneficial when ranking requests are frequent and updates are relatively less frequent.
+D. Predict Before Implementing – 1 Mark
+Before implementation, the following behaviour is predicted:
+1. The original implementation will sort the entire list for every ranking request.
+2. The redesigned implementation will sort only once if no changes occur.
+3. Repeated ranking requests will become faster.
+4. When a new team is added, the cache will be invalidated and sorted again on the next request.
+5. Both implementations will produce exactly the same ranking.
+Prediction: With 10,000 teams and 100 ranking requests without updates, the redesigned solution should perform 1 sort instead of 100 sorts, a 99% reduction in sorting operations.
+E. Implement and Validate the Redesign – 2 Marks
+1. Complete Java implementation
+The following program compares the original and redesigned solutions under the same conditions.
+
+import java.util.*;
+
+class Team {
+    final String name;
+    final int points;
+    final int goalDiff;
+
+    Team(String name, int points, int goalDiff) {
+        this.name = name;
+        this.points = points;
+        this.goalDiff = goalDiff;
+    }
+
+    public String toString() {
+        return name + "(" + points + "," + goalDiff + ")";
+    }
+}
+
+// Original implementation
+class OriginalLeaderboard {
+    List<Team> items = new ArrayList<>();
+    Comparator<Team> order;
+    int sortCount = 0;
+
+    OriginalLeaderboard(Comparator<Team> order) {
+        this.order = order;
+    }
+
+    void add(Team t) {
+        items.add(t);
+    }
+
+    List<Team> ranking() {
+        List<Team> result = new ArrayList<>(items);
+        result.sort(order);
+        sortCount++;
+        return result;
+    }
+}
+
+// Redesigned implementation
+class CachedLeaderboard {
+    List<Team> items = new ArrayList<>();
+    List<Team> cache;
+    Comparator<Team> order;
+    boolean dirty = true;
+    int sortCount = 0;
+
+    CachedLeaderboard(Comparator<Team> order) {
+        this.order = order;
+    }
+
+    void add(Team t) {
+        items.add(t);
+        dirty = true;
+    }
+
+    List<Team> ranking() {
+
+        if (dirty) {
+            cache = new ArrayList<>(items);
+            cache.sort(order);
+            sortCount++;
+            dirty = false;
+        }
+
+        return Collections.unmodifiableList(cache);
+    }
+}
+
+public class Q7Demo {
+
+    public static void main(String[] args) {
+
+        Comparator<Team> byRank =
+            Comparator.comparingInt((Team t) -> t.points)
+            .reversed()
+            .thenComparing(
+                Comparator.comparingInt(
+                    (Team t) -> t.goalDiff
+                ).reversed()
+            )
+            .thenComparing(t -> t.name);
+
+        OriginalLeaderboard original =
+            new OriginalLeaderboard(byRank);
+
+        CachedLeaderboard redesigned =
+            new CachedLeaderboard(byRank);
+
+        int n = 10000;
+        int requests = 100;
+
+        // Insert identical data into both systems
+        for (int i = 0; i < n; i++) {
+            Team t = new Team(
+                "Team" + i,
+                i % 20,
+                i % 10
+            );
+
+            original.add(t);
+            redesigned.add(t);
+        }
+
+        // Original experiment
+        long start = System.nanoTime();
+
+        for (int i = 0; i < requests; i++) {
+            original.ranking();
+        }
+
+        long originalTime =
+            System.nanoTime() - start;
+
+        // Redesigned experiment
+        start = System.nanoTime();
+
+        for (int i = 0; i < requests; i++) {
+            redesigned.ranking();
+        }
+
+        long redesignedTime =
+            System.nanoTime() - start;
+
+        System.out.println("Original Sort Count: "
+                           + original.sortCount);
+
+        System.out.println("Redesigned Sort Count: "
+                           + redesigned.sortCount);
+
+        System.out.println("Original Time: "
+                           + originalTime + " ns");
+
+        System.out.println("Redesigned Time: "
+                           + redesignedTime + " ns");
+
+        // Check correctness
+        System.out.println("Same Ranking: "
+            + original.ranking().equals(
+                redesigned.ranking()
+            ));
+
+        // Test cache invalidation
+        redesigned.add(new Team("NewTeam", 25, 10));
+
+        System.out.println("Updated Ranking: "
+                           + redesigned.ranking().get(0));
+
+        System.out.println("Sort Count After Update: "
+                           + redesigned.sortCount);
+    }
+}
+
+
+
+2. Expected execution output
+Expected logical results
+Original Sort Count: 100
+Redesigned Sort Count: 1
+
+Original Time: (measured by program) ns
+Redesigned Time: (measured by program) ns
+
+Same Ranking: true
+
+Updated Ranking: NewTeam(25,10)
+Sort Count After Update: 2
+
+
+The execution times are intentionally left for the actual Java run. They depend on the computer and JVM.
+3. Validation
+The redesigned implementation is checked using the following tests:
+Test	Input condition	Expected result
+Test 1	10,000 teams, 100 ranking requests	Only 1 sort in redesigned solution
+Test 2	Request ranking repeatedly without updates	Cached ranking reused
+Test 3	Add a new team	Cache becomes dirty
+Test 4	Request ranking after adding a team	Cache rebuilt
+Test 5	Compare original and redesigned results	Both rankings equal
+
+4. Complexity comparison
+Let:
+- \(n\) = number of teams
+- \(r\) = number of ranking requests
+- \(u\) = number of updates that occur between ranking requests
+Operation	Original	Redesigned
+Add team	O(1) amortized	O(1) amortized
+First ranking request	O(n log n)	O(n log n)
+Repeated ranking request without updates	O(n log n)	O(1)
+Cache rebuild after update	Not applicable	O(n log n)
+Extra storage	O(n) temporary	O(n) persistent cache
+
+For \(r\) ranking requests without updates:
+- Original: O(r × n log n)
+- Redesigned: O(n log n + r)
+Therefore, the redesigned approach reduces repeated sorting work significantly when the ranking is requested frequently.
+F. Defend the Final Design – 2 Marks
+1. Did the redesign achieve its objective?
+Yes. The redesigned solution avoids repeated sorting when the leaderboard data remains unchanged.
+
+The original implementation performs sorting for every request, whereas the redesigned implementation reuses the cached ranking.
+2. Magnitude of improvement
+For 10,000 teams and 100 ranking requests:
+Measurement	Original	Redesigned
+Sorting operations	100	1
+Sorting reduction	–	99%
+Ranking retrieval after initial sort	O(n log n)	O(1)
+Ranking correctness	Correct	Correct
+
+99% fewer sorting operations
+3. New costs and trade-offs
+Advantages:
+- Reduces repeated sorting.
+- Avoids unnecessary list creation.
+- Improves repeated ranking retrieval.
+- Preserves the original comparator rules.
+- Supports generic leaderboard objects.
+Disadvantages:
+- Requires additional memory for the cached list.
+- The cache must be rebuilt after an update.
+- The design requires careful cache invalidation.
+- The implementation needs synchronization if multiple threads modify and access the leaderboard simultaneously.
+4. When is the original design preferable?
+The original implementation may be preferable when:
+- The leaderboard contains only a few teams.
+- Ranking requests are very infrequent.
+- Teams are updated frequently.
+- Simplicity is more important than repeated-query performance.
+5. Experimental evaluation
+To make the comparison reliable, run both implementations several times using the same input data. Perform JVM warm-up before measuring and compare average execution times.
+
+The sorting-operation counter provides deterministic evidence, while the timing experiment measures actual performance.
+
+Do not claim that the measured execution time improved by a particular percentage until you have recorded the results from your computer.
+6. Final Engineering Conclusion
+The original generic leaderboard had a performance limitation because it copied and sorted all teams whenever the ranking method was called. This resulted in unnecessary repeated work.
+
+To solve this problem, a cached ranking mechanism was developed using a dirty flag. The redesigned solution sorts the data only when a change occurs and reuses the sorted result for subsequent requests.
+
+The prediction was that repeated sorting would decrease from 100 operations to one operation for 100 ranking requests without updates. The implementation provides a way to verify this prediction while preserving the correctness of the original ranking rules.
+
+Therefore, the cached leaderboard is a better engineering solution for applications where ranking requests are frequent and updates are less frequent. The original implementation remains suitable for smaller applications with infrequent ranking requests.
+
+Final Q7 report checklist
+Submission checklist
+0/7
+
+[ ] A. Diagnose the bottleneck – 2 marks
+[ ] B. Define the design objective – 2 marks
+[ ] C. Revised design and pseudocode – 4 marks
+[ ] D. Prediction before implementation – 1 mark
+[ ] E. Original and redesigned Java implementations – 2 marks
+[ ] E. Execution screenshots and experimental measurements
+[ ] F. Final comparison and engineering justification – 2 marks
+
+Important for your 13 marks: Include screenshots of the original implementation, redesigned implementation and their execution outputs. Also include your actual measured timings for both solutions. The operation counts alone do not replace the experimental evidence.
+
+
+
+
+
+
+
+
+
+
+
+
+Is this conversation helpful so far?
