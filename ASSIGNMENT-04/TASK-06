@@ -1,0 +1,919 @@
+TASK 6 – Campus Event Registration Desktop Application
+Bloom’s Level: K5 – Evaluate
+Total Marks: 13
+Stage 1 – Interpret the Problem (2 Marks)
+1.1 Users
+1. Student: Registers for a cultural event by entering personal details and selecting an event.
+2. Committee Member / Admin: Views all registrations, filters registrations by event, and exports registration details.
+1.2 Screens
+Screen	Purpose
+Student Registration	Enter student ID, name, department and event
+Registration Management	Display registrations in a JTable
+Filter Section	Filter registrations by event
+Export Option	Export registration details to a CSV file
+Message Dialog	Display success, validation and error messages
+
+1.3 Data Required
+- Registration ID
+- Student ID
+- Student name
+- Department
+- Event name
+- Registration date
+1.4 Testable Requirements
+ID	Requirement	Expected result
+R1	Student enters all required details	Registration form accepts valid details
+R2	Student leaves a required field empty	Application displays a validation message
+R3	Student enters an invalid student ID	Application rejects the input
+R4	Student registers for an event for the first time	Registration is saved in MySQL
+R5	Student registers for the same event again	Duplicate registration is rejected
+R6	Committee selects an event filter	Only matching registrations are displayed
+R7	Committee clicks Export	Registration list is saved as a CSV file
+R8	Database takes time to respond	Window remains responsive
+R9	Committee moves to another page	Only the requested page of records is loaded
+
+Stage 2 – Propose the Screen and Event Flow (2 Marks)
+2.1 Student Registration Screen
+Campus Event Registration
+
+File  |  Registration  |  Help
+
+Student Registration
+Student ID
+Enter student ID
+
+Student Name
+Enter student name
+
+Department
+Select department
+
+Event
+Select event
+
+Register
+Clear
+
+Illustrative screen layout, not an actual application screenshot.
+2.2 Registration Management Screen
+Campus Event Registration
+
+File  |  Registration  |  Help
+
+Manage Registrations
+Filter by event
+
+All Events
+
+Filter
+Export CSV
+
+ID	Student	Event
+1	Ravi	Dance
+2	Priya	Singing
+3	Arun	Drama
+
+Previous
+Page 1
+Next
+
+Illustrative table layout, not actual registration data.
+2.3 Screen and Event Flow
+             START
+               |
+               v
+       Main Application
+               |
+        +------+------+
+        |             |
+        v             v
+ Student Registration  Manage Registrations
+        |             |
+        v             v
+  Validate Input    Select Event Filter
+        |             |
+   +----+----+        v
+   |         |    Load Data
+ Invalid   Valid   using SwingWorker
+   |         |        |
+   v         v        v
+ Error    Check Duplicate
+ Message      |
+          +---+---+
+          |       |
+        Exists  Not Exists
+          |       |
+          v       v
+       Reject   Save in MySQL
+          |       |
+          +---+---+
+              |
+              v
+         Success Message
+
+ Manage Registrations
+        |
+        +------> Export CSV
+        |
+        +------> Previous / Next Page
+        |
+        v
+       EXIT
+
+
+Menu bar design:
+- File: Exit
+- Registration: New Registration, View Registrations
+- Help: About
+Event flow: Clicking Register validates the form and saves the record. Clicking Filter loads matching records. Clicking Next or Previous loads the requested page. Clicking Export saves the displayed records as a CSV file.
+Stage 3 – Identify the Critical Design Decisions (2 Marks)
+3.1 Input Validation
+Validation is performed in the service layer before accessing the database.
+- Student ID must not be empty and must contain only letters and numbers.
+- Student name must not be empty.
+- Department must be selected.
+- Event must be selected.
+- Invalid input must display a clear JOptionPane error message.
+3.2 Duplicate Registration Checking
+The application checks whether the same student has already registered for the same event.
+
+SQL condition:
+SELECT COUNT(*)
+FROM registrations
+WHERE student_id = ?
+AND event_name = ?;
+
+
+However, checking only with SELECT is not enough because two requests could arrive at nearly the same time. Therefore, MySQL must also enforce a unique constraint:
+UNIQUE (student_id, event_name)
+
+
+This guarantees that duplicate registrations cannot be saved, even if two requests happen simultaneously.
+3.3 Database Access
+- JDBC is used to connect Java Swing with MySQL.
+- PreparedStatement is used for SQL queries.
+- Database operations are handled in the DAO (Data Access Object) class.
+- Database connections and statements are closed using try-with-resources.
+3.4 Keeping the Application Responsive
+Swing uses an Event Dispatch Thread (EDT) to handle button clicks and update the screen. Long-running database operations should not run on this thread.
+
+Solution: SwingWorker
+1. User clicks Register or Filter.
+2. SwingWorker performs the database operation in the background.
+3. The EDT remains free to respond to the user.
+4. done() updates the JTable or displays the result.
+Thread handling
+EDT – User Interface
+
+Button clicks, text fields, JTable updates and messages
+
+
+SwingWorker – Background
+
+JDBC connection, insert, filter and page loading
+
+
+EDT – Update
+
+Display success message and update JTable
+
+
+Stage 4 – Design the Classes and Handlers (4 Marks)
+4.1 Class Diagram
+          EventRegistrationApp
+             (Main Class)
+                   |
+                   v
+           RegistrationFrame
+              (UI Layer)
+                   |
+          +--------+--------+
+          |                 |
+          v                 v
+    RegisterHandler    FilterHandler
+          |                 |
+          +--------+--------+
+                   |
+                   v
+           RegistrationService
+              (Service Layer)
+                   |
+                   v
+          RegistrationDAO
+             (JDBC Layer)
+                   |
+                   v
+              MySQL DB
+
+
+4.2 Class Responsibilities
+Class	Responsibility
+RegistrationFrame	Creates JFrame, JPanel, JTable, buttons and menu bar
+Registration	Stores registration details
+RegistrationService	Validates inputs and applies registration rules
+RegistrationDAO	Executes JDBC queries and updates MySQL
+SwingWorker	Executes database operations in the background
+
+4.3 Pseudocode – Register Action
+START
+  Read student ID, name, department and event
+
+  IF any required field is empty
+      Display validation error
+      STOP
+  END IF
+
+  IF student ID is invalid
+      Display invalid ID message
+      STOP
+  END IF
+
+  Start SwingWorker
+
+      Check whether student already registered
+
+      IF duplicate exists
+          Return duplicate message
+      ELSE
+          Insert registration into database
+          Return success message
+      END IF
+
+  In done()
+      Display result message
+      Refresh registration table if successful
+
+END
+
+
+4.4 Pseudocode – Filter Action
+START
+  Read selected event
+  Read current page number
+
+  Start SwingWorker
+
+      Connect to MySQL
+
+      IF event = "All Events"
+          Load all registrations for current page
+      ELSE
+          Load registrations for selected event
+      END IF
+
+      Execute SQL using LIMIT and OFFSET
+
+  In done()
+      Clear existing JTable rows
+      Display fetched registrations
+      Update page information
+
+END
+
+
+Stage 5 – Implement and Demonstrate (3 Marks)
+5.1 MySQL Database Setup
+First, create the database and table in MySQL Workbench:
+CREATE DATABASE campus_events;
+
+USE campus_events;
+
+CREATE TABLE registrations (
+    registration_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id VARCHAR(20) NOT NULL,
+    student_name VARCHAR(100) NOT NULL,
+    department VARCHAR(50) NOT NULL,
+    event_name VARCHAR(50) NOT NULL,
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (student_id, event_name)
+);
+
+
+The UNIQUE (student_id, event_name) constraint prevents the same student from registering for the same event twice.
+5.2 Java Swing Application
+Create a file named EventRegistrationApp.java.
+
+Before running the program:
+1. Install MySQL Server and create the database using the SQL above.
+2. Add the MySQL Connector/J JAR file to your Java project's classpath.
+3. Change the database username and password in the DB class below.
+The following is a compact, single-file implementation. It keeps the UI, service and JDBC responsibilities in separate classes.
+
+import java.awt.*;
+import java.awt.event.*;
+import java.io.*;
+import java.sql.*;
+import java.util.*;
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+
+// DATABASE CONNECTION
+class DB {
+    static Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(
+            "jdbc:mysql://localhost:3306/campus_events",
+            "root",
+            "YOUR_MYSQL_PASSWORD"
+        );
+    }
+}
+
+// REGISTRATION MODEL
+class Registration {
+    String id, name, department, event;
+
+    Registration(String id, String name,
+                 String department, String event) {
+        this.id = id;
+        this.name = name;
+        this.department = department;
+        this.event = event;
+    }
+}
+
+// JDBC DATA ACCESS LAYER
+class RegistrationDAO {
+
+    boolean insert(Registration r) throws SQLException {
+        String sql = "INSERT INTO registrations " +
+            "(student_id, student_name, department, event_name) " +
+            "VALUES (?, ?, ?, ?)";
+
+        try (Connection con = DB.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, r.id);
+            ps.setString(2, r.name);
+            ps.setString(3, r.department);
+            ps.setString(4, r.event);
+            ps.executeUpdate();
+            return true;
+
+        } catch (SQLIntegrityConstraintViolationException e) {
+            return false;
+        }
+    }
+
+    java.util.List<String[]> getPage(
+            String event, int limit, int offset) throws SQLException {
+
+        java.util.List<String[]> list = new ArrayList<>();
+
+        String sql = "SELECT registration_id, student_id, " +
+            "student_name, department, event_name, registration_date " +
+            "FROM registrations " +
+            "WHERE (? = 'All Events' OR event_name = ?) " +
+            "ORDER BY registration_id " +
+            "LIMIT ? OFFSET ?";
+
+        try (Connection con = DB.getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, event);
+            ps.setString(2, event);
+            ps.setInt(3, limit);
+            ps.setInt(4, offset);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    list.add(new String[] {
+                        rs.getString("registration_id"),
+                        rs.getString("student_id"),
+                        rs.getString("student_name"),
+                        rs.getString("department"),
+                        rs.getString("event_name"),
+                        rs.getString("registration_date")
+                    });
+                }
+            }
+        }
+        return list;
+    }
+}
+
+// SERVICE LAYER
+class RegistrationService {
+    RegistrationDAO dao = new RegistrationDAO();
+
+    String register(Registration r) throws SQLException {
+        if (r.id.trim().isEmpty() ||
+            r.name.trim().isEmpty()) {
+            return "Please fill all required fields.";
+        }
+
+        if (!r.id.matches("[A-Za-z0-9]{3,20}")) {
+            return "Invalid student ID.";
+        }
+
+        if (r.department.equals("Select Department") ||
+            r.event.equals("Select Event")) {
+            return "Please select department and event.";
+        }
+
+        if (dao.insert(r)) {
+            return "Registration successful!";
+        }
+
+        return "Duplicate registration! You already registered for this event.";
+    }
+
+    java.util.List<String[]> filter(
+            String event, int limit, int offset) throws SQLException {
+        return dao.getPage(event, limit, offset);
+    }
+}
+
+// USER INTERFACE LAYER
+public class EventRegistrationApp extends JFrame {
+
+    JTextField idField = new JTextField(15);
+    JTextField nameField = new JTextField(15);
+
+    JComboBox<String> departmentBox = new JComboBox<>(
+        new String[]{"Select Department", "CSE", "ECE", "IT", "EEE"}
+    );
+
+    JComboBox<String> eventBox = new JComboBox<>(
+        new String[]{"Select Event", "Dance", "Singing", "Drama", "Sports"}
+    );
+
+    JComboBox<String> filterBox = new JComboBox<>(
+        new String[]{"All Events", "Dance", "Singing", "Drama", "Sports"}
+    );
+
+    DefaultTableModel model = new DefaultTableModel(
+        new String[]{"ID", "Student ID", "Name", "Department",
+                     "Event", "Date"}, 0
+    );
+
+    JTable table = new JTable(model);
+
+    RegistrationService service = new RegistrationService();
+
+    int page = 0;
+    final int PAGE_SIZE = 20;
+
+    JButton registerButton = new JButton("Register");
+    JButton filterButton = new JButton("Filter");
+    JButton previousButton = new JButton("Previous");
+    JButton nextButton = new JButton("Next");
+    JButton exportButton = new JButton("Export CSV");
+
+    JLabel pageLabel = new JLabel("Page 1");
+
+    public EventRegistrationApp() {
+        setTitle("Campus Event Registration");
+        setSize(900, 550);
+        setLocationRelativeTo(null);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // MENU BAR
+        JMenuBar menuBar = new JMenuBar();
+
+        JMenu fileMenu = new JMenu("File");
+        JMenu registrationMenu = new JMenu("Registration");
+        JMenu helpMenu = new JMenu("Help");
+
+        JMenuItem exitItem = new JMenuItem("Exit");
+        JMenuItem newItem = new JMenuItem("New Registration");
+        JMenuItem viewItem = new JMenuItem("View Registrations");
+        JMenuItem aboutItem = new JMenuItem("About");
+
+        exitItem.addActionListener(e -> System.exit(0));
+        newItem.addActionListener(e ->
+            JOptionPane.showMessageDialog(this,
+                "Enter student details in the registration form."));
+        viewItem.addActionListener(e -> loadPage());
+        aboutItem.addActionListener(e ->
+            JOptionPane.showMessageDialog(this,
+                "Campus Event Registration Application"));
+
+        fileMenu.add(exitItem);
+        registrationMenu.add(newItem);
+        registrationMenu.add(viewItem);
+        helpMenu.add(aboutItem);
+
+        menuBar.add(fileMenu);
+        menuBar.add(registrationMenu);
+        menuBar.add(helpMenu);
+        setJMenuBar(menuBar);
+
+        // REGISTRATION PANEL
+        JPanel form = new JPanel(new GridLayout(5, 2, 8, 8));
+        form.setBorder(BorderFactory.createTitledBorder(
+            "Student Registration"));
+
+        form.add(new JLabel("Student ID:"));
+        form.add(idField);
+        form.add(new JLabel("Student Name:"));
+        form.add(nameField);
+        form.add(new JLabel("Department:"));
+        form.add(departmentBox);
+        form.add(new JLabel("Event:"));
+        form.add(eventBox);
+        form.add(registerButton);
+
+        JButton clearButton = new JButton("Clear");
+        form.add(clearButton);
+
+        // TABLE PANEL
+        JPanel tablePanel = new JPanel(new BorderLayout(5, 5));
+        tablePanel.setBorder(BorderFactory.createTitledBorder(
+            "Manage Registrations"));
+
+        JPanel filterPanel = new JPanel();
+        filterPanel.add(new JLabel("Filter by Event:"));
+        filterPanel.add(filterBox);
+        filterPanel.add(filterButton);
+        filterPanel.add(exportButton);
+
+        tablePanel.add(filterPanel, BorderLayout.NORTH);
+        tablePanel.add(new JScrollPane(table), BorderLayout.CENTER);
+
+        JPanel pagePanel = new JPanel();
+        pagePanel.add(previousButton);
+        pagePanel.add(pageLabel);
+        pagePanel.add(nextButton);
+        tablePanel.add(pagePanel, BorderLayout.SOUTH);
+
+        // MAIN LAYOUT
+        setLayout(new GridLayout(2, 1, 5, 5));
+        add(form);
+        add(tablePanel);
+
+        // REGISTER ACTION
+        registerButton.addActionListener(e -> registerStudent());
+
+        // CLEAR ACTION
+        clearButton.addActionListener(e -> {
+            idField.setText("");
+            nameField.setText("");
+            departmentBox.setSelectedIndex(0);
+            eventBox.setSelectedIndex(0);
+        });
+
+        // FILTER ACTION
+        filterButton.addActionListener(e -> {
+            page = 0;
+            loadPage();
+        });
+
+        // PAGE ACTIONS
+        previousButton.addActionListener(e -> {
+            if (page > 0) {
+                page--;
+                loadPage();
+            }
+        });
+
+        nextButton.addActionListener(e -> {
+            page++;
+            loadPage();
+        });
+
+        // EXPORT ACTION
+        exportButton.addActionListener(e -> exportCSV());
+
+        loadPage();
+    }
+
+    // REGISTER USING SWINGWORKER
+    void registerStudent() {
+        Registration r = new Registration(
+            idField.getText().trim(),
+            nameField.getText().trim(),
+            (String) departmentBox.getSelectedItem(),
+            (String) eventBox.getSelectedItem()
+        );
+
+        registerButton.setEnabled(false);
+
+        new SwingWorker<String, Void>() {
+            protected String doInBackground() throws Exception {
+                return service.register(r);
+            }
+
+            protected void done() {
+                registerButton.setEnabled(true);
+                try {
+                    String message = get();
+                    JOptionPane.showMessageDialog(
+                        EventRegistrationApp.this, message);
+
+                    if (message.equals("Registration successful!")) {
+                        idField.setText("");
+                        nameField.setText("");
+                        departmentBox.setSelectedIndex(0);
+                        eventBox.setSelectedIndex(0);
+                        page = 0;
+                        loadPage();
+                    }
+                } catch (Exception ex) {
+                    showError(ex);
+                }
+            }
+        }.execute();
+    }
+
+    // FILTER AND LOAD ONE PAGE
+    void loadPage() {
+        String event = (String) filterBox.getSelectedItem();
+        int offset = page * PAGE_SIZE;
+
+        filterButton.setEnabled(false);
+        nextButton.setEnabled(false);
+        previousButton.setEnabled(false);
+        pageLabel.setText("Loading...");
+
+        new SwingWorker<java.util.List<String[]>, Void>() {
+            protected java.util.List<String[]> doInBackground()
+                    throws Exception {
+                return service.filter(event, PAGE_SIZE, offset);
+            }
+
+            protected void done() {
+                filterButton.setEnabled(true);
+                previousButton.setEnabled(page > 0);
+
+                try {
+                    java.util.List<String[]> rows = get();
+
+                    model.setRowCount(0);
+                    for (String[] row : rows) {
+                        model.addRow(row);
+                    }
+
+                    pageLabel.setText("Page " + (page + 1));
+                    nextButton.setEnabled(rows.size() == PAGE_SIZE);
+
+                    if (rows.isEmpty() && page > 0) {
+                        page--;
+                        loadPage();
+                    }
+
+                } catch (Exception ex) {
+                    pageLabel.setText("Load failed");
+                    showError(ex);
+                }
+            }
+        }.execute();
+    }
+
+    // EXPORT DISPLAYED PAGE TO CSV
+    void exportCSV() {
+        JFileChooser chooser = new JFileChooser();
+        chooser.setSelectedFile(
+            new File("event_registrations.csv"));
+
+        if (chooser.showSaveDialog(this) !=
+                JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+
+        try (PrintWriter out = new PrintWriter(
+                new FileWriter(chooser.getSelectedFile()))) {
+
+            for (int c = 0; c < model.getColumnCount(); c++) {
+                if (c > 0) out.print(",");
+                out.print(model.getColumnName(c));
+            }
+            out.println();
+
+            for (int r = 0; r < model.getRowCount(); r++) {
+                for (int c = 0; c < model.getColumnCount(); c++) {
+                    if (c > 0) out.print(",");
+                    String value = String.valueOf(
+                        model.getValueAt(r, c));
+                    out.print("\"" + value.replace("\"", "\"\"") + "\"");
+                }
+                out.println();
+            }
+
+            JOptionPane.showMessageDialog(this,
+                "Current page exported successfully!");
+
+        } catch (IOException ex) {
+            showError(ex);
+        }
+    }
+
+    void showError(Exception ex) {
+        Throwable cause = ex;
+        while (cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+
+        JOptionPane.showMessageDialog(this,
+            "Error: " + cause.getMessage(),
+            "Application Error",
+            JOptionPane.ERROR_MESSAGE);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new EventRegistrationApp().setVisible(true));
+    }
+}
+
+
+
+Important implementation note: This example exports the records currently visible on the JTable (one page), not every matching record in the database. It also uses a simple CSV writer suitable for this assignment. A production version should export all matching rows in a background worker and handle CSV quoting carefully.
+5.3 Execution
+Compile and run the program from the terminal. Add the MySQL Connector/J JAR to the classpath.
+
+Windows example:
+javac -cp ".;mysql-connector-j-9.5.0.jar" EventRegistrationApp.java
+
+java -cp ".;mysql-connector-j-9.5.0.jar" EventRegistrationApp
+
+
+Replace the JAR filename with the exact version you downloaded. Also replace YOUR_MYSQL_PASSWORD with your actual MySQL password.
+5.4 Improved Export – Export All Filtered Registrations
+To export the complete filtered list rather than only the visible page, replace the exportCSV() method in the program with this version. It retrieves all matching records page by page in the background.
+
+void exportCSV() {
+    JFileChooser chooser = new JFileChooser();
+    chooser.setSelectedFile(new File("event_registrations.csv"));
+
+    if (chooser.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+        return;
+    }
+
+    File file = chooser.getSelectedFile();
+    String event = (String) filterBox.getSelectedItem();
+
+    exportButton.setEnabled(false);
+
+    new SwingWorker<Void, Void>() {
+        protected Void doInBackground() throws Exception {
+            try (PrintWriter out = new PrintWriter(new FileWriter(file))) {
+
+                out.println("ID,Student ID,Name,Department,Event,Date");
+
+                int offset = 0;
+                java.util.List<String[]> rows;
+
+                do {
+                    rows = service.filter(event, PAGE_SIZE, offset);
+
+                    for (String[] row : rows) {
+                        for (int c = 0; c < row.length; c++) {
+                            if (c > 0) out.print(",");
+                            out.print("\"" +
+                                row[c].replace("\"", "\"\"") + "\"");
+                        }
+                        out.println();
+                    }
+
+                    offset += PAGE_SIZE;
+
+                } while (rows.size() == PAGE_SIZE);
+            }
+            return null;
+        }
+
+        protected void done() {
+            exportButton.setEnabled(true);
+            try {
+                get();
+                JOptionPane.showMessageDialog(
+                    EventRegistrationApp.this,
+                    "All filtered registrations exported successfully!");
+            } catch (Exception ex) {
+                showError(ex);
+            }
+        }
+    }.execute();
+}
+This version exports every matching record and does not freeze the window while retrieving or writing the file.
+5.5 Demonstration and Test Cases
+Use the following test cases after connecting the program to MySQL.
+Test	Input / Action	Expected output
+1. Normal registration	STU101, Ravi, CSE, Dance	Registration successful
+2. Another event	STU101, Ravi, CSE, Singing	Registration successful
+3. Duplicate registration	STU101, Ravi, CSE, Dance again	Duplicate registration message
+4. Empty student ID	Leave ID empty	Please fill all required fields
+5. Invalid student ID	@@@	Invalid student ID
+6. Missing department	Do not select department	Please select department and event
+7. Filter	Select Dance	Only Dance registrations appear
+8. Export	Click Export CSV	All filtered records are saved in CSV
+9. Pagination	Click Next	Next 20 records are loaded
+
+Expected Output Examples
+Normal Registration
+
+Registration successful!
+
+Duplicate Registration
+
+Duplicate registration!
+
+Invalid Input
+
+Invalid student ID.
+These are expected messages. Capture screenshots from your actual running application for submission.
+5.6 Screenshots to Include in the Report
+1. Student registration screen with all fields.
+2. Successful registration message.
+3. Duplicate registration error message.
+4. Invalid input validation message.
+5. JTable displaying registrations.
+6. Filtered JTable showing one event.
+7. CSV file opened in Excel or another spreadsheet application.
+Alternative Concept and Complexity Analysis
+Question: What happens if all 100,000 registrations are loaded into the JTable at once instead of loading one page at a time using SQL LIMIT and OFFSET?
+
+Assume:
+- Total registrations = 100,000
+- Columns per registration = 6
+- Page size = 20
+1. Approach A – Load All Records at Once
+SQL query:
+SELECT * FROM registrations;
+
+
+Working:
+1. Fetch all 100,000 records from MySQL.
+2. Store all records in application memory.
+3. Add all records to the JTable.
+4. Display the complete registration list.
+Advantages:
+- All registrations are available immediately after loading.
+- No need for Previous and Next buttons.
+- Easy to search through the loaded records locally.
+Disadvantages:
+- Requires more memory.
+- Initial loading takes longer.
+- Creating and displaying 100,000 table rows can make the interface slow.
+- Large result sets may cause memory problems.
+2. Approach B – Load One Page at a Time
+SQL query:
+SELECT * FROM registrations
+ORDER BY registration_id
+LIMIT 20 OFFSET 0;
+
+
+For the next page:
+SELECT * FROM registrations
+ORDER BY registration_id
+LIMIT 20 OFFSET 20;
+
+
+Working:
+1. Fetch only 20 records.
+2. Display them in the JTable.
+3. When the user clicks Next, fetch the next 20 records.
+4. Continue until all matching records have been viewed.
+Advantages:
+- Uses less memory.
+- Faster initial loading.
+- JTable displays fewer rows.
+- Better user experience for large datasets.
+Disadvantages:
+- Users need to navigate between pages.
+- More database requests are required.
+- Large OFFSET values can become slower because the database may need to skip earlier rows.
+3. Complexity Comparison
+Let:
+- \(N\) = total registrations (100,000)
+- \(P\) = records per page (20)
+- \(C\) = number of columns (6)
+Factor	Load All Records	Pagination
+Records loaded initially	100,000	20
+Initial loading work	\(O(N)\)	Approximately \(O(P)\), plus database query cost
+Application memory	\(O(N \times C)\)	\(O(P \times C)\)
+Initial table rendering	High	Low
+Window responsiveness	May become slow	Better
+Database requests	Usually one	One per page
+Navigation	Scroll through all rows	Previous / Next
+
+4. Memory Calculation
+Approach A – Load All Records
+\[
+100,000 \times 6 = 600,000 \text{ cells}
+\]
+
+The application must hold approximately 600,000 cell values, along with row objects, strings, table-model data and other Java objects.
+
+Approach B – Pagination
+\[
+20 \times 6 = 120 \text{ cells}
+\]
+
+Only 120 cell values are displayed in the current page.
+Number of displayed table cells
+Comparison for 100,000 registrations with six columns and a page size of 20.
+
+0200K400K600K800KLoad allPagination
+Pagination displays 120 cells at a time instead of 600,000. This is a reduction of 99.98% in the number of displayed cells.
+5. Effect on Window Responsiveness
+- Loading all records: The application may take longer to fetch data and construct the table. If the table is updated with all rows on the EDT, the window can freeze temporarily. Large memory usage can also cause garbage collection delays.
+- Pagination: Only a small number of rows are loaded and displayed. SwingWorker performs database operations in the background, so the window remains responsive while data is fetched.
+Important: SwingWorker prevents database work from blocking the EDT, but it does not automatically make a huge table update inexpensive. The table should still be updated with a manageable number of rows.
+6. Final Evaluation
+Recommended: Pagination with SwingWorker
+For 100,000 registrations, pagination is the better design because it reduces the amount of data loaded into the JTable and the memory required for the displayed records. Using SwingWorker keeps database operations outside the EDT, improving the application's responsiveness.
+
+For very large datasets, keyset pagination can also be considered instead of large SQL OFFSET values.
+Conclusion
+The Campus Event Registration Application provides student registration and committee management features using Java Swing and MySQL. It validates user inputs, prevents duplicate registrations through a database unique constraint, filters records by event, and exports registration details to CSV. The use of JDBC, layered classes, SwingWorker and pagination makes the application more reliable, organized and responsive.
