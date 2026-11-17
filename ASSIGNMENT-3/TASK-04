@@ -1,0 +1,465 @@
+Q4 – Thread Creation and the Thread Life Cycle
+Marks: 7
+Bloom’s Level: K4 – Analyse
+1. Problem Analysis
+An examination cell has four scanner stations. Each station scans a batch of answer scripts at the same time.
+
+The program must:
+1. Create four scanner threads.
+2. Process scripts simultaneously.
+3. Use start() to begin execution.
+4. Use sleep() to simulate scanning time.
+5. Use isAlive() to check whether a station is running.
+6. Use join() to wait until all stations finish.
+7. Calculate and display the total number of scanned scripts.
+2. Method 1 – Creating Threads by Extending Thread
+In this method, a class extends the Thread class and overrides its run() method.
+
+class ScannerStation extends Thread {
+    int scripts;
+    int stationNumber;
+
+    ScannerStation(int stationNumber, int scripts) {
+        this.stationNumber = stationNumber;
+        this.scripts = scripts;
+    }
+
+    public void run() {
+        try {
+            System.out.println(
+                "Station " + stationNumber + " started.");
+
+            Thread.sleep(1000);
+
+            System.out.println(
+                "Station " + stationNumber +
+                " scanned " + scripts + " scripts.");
+        }
+        catch (InterruptedException e) {
+            System.out.println("Station interrupted.");
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+public class ThreadDemo {
+    public static void main(String[] args)
+            throws InterruptedException {
+
+        ScannerStation t1 = new ScannerStation(1, 100);
+        ScannerStation t2 = new ScannerStation(2, 150);
+        ScannerStation t3 = new ScannerStation(3, 120);
+        ScannerStation t4 = new ScannerStation(4, 130);
+
+        t1.start();
+        t2.start();
+        t3.start();
+        t4.start();
+
+        System.out.println("Station 1 alive: " + t1.isAlive());
+
+        t1.join();
+        t2.join();
+        t3.join();
+        t4.join();
+
+        int total = t1.scripts + t2.scripts
+                  + t3.scripts + t4.scripts;
+
+        System.out.println("All stations completed.");
+        System.out.println("Total scripts scanned: " + total);
+    }
+}
+
+
+
+Expected output
+Station 1 started.
+Station 2 started.
+Station 3 started.
+Station 4 started.
+Station 1 alive: true
+Station 2 scanned 150 scripts.
+Station 4 scanned 130 scripts.
+Station 3 scanned 120 scripts.
+Station 1 scanned 100 scripts.
+All stations completed.
+Total scripts scanned: 500
+
+
+The station completion order can change between runs.
+3. Method 2 – Creating Threads by Implementing Runnable
+In this method, a class implements the Runnable interface and defines its work inside the run() method. A Thread object is then created using that Runnable object.
+
+class ScannerTask implements Runnable {
+    int stationNumber;
+    int scripts;
+
+    ScannerTask(int stationNumber, int scripts) {
+        this.stationNumber = stationNumber;
+        this.scripts = scripts;
+    }
+
+    public void run() {
+        try {
+            System.out.println(
+                "Station " + stationNumber + " started.");
+
+            Thread.sleep(1000);
+
+            System.out.println(
+                "Station " + stationNumber +
+                " scanned " + scripts + " scripts.");
+        }
+        catch (InterruptedException e) {
+            System.out.println("Station interrupted.");
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+public class RunnableDemo {
+    public static void main(String[] args)
+            throws InterruptedException {
+
+        Thread t1 = new Thread(new ScannerTask(1, 100));
+        Thread t2 = new Thread(new ScannerTask(2, 150));
+        Thread t3 = new Thread(new ScannerTask(3, 120));
+        Thread t4 = new Thread(new ScannerTask(4, 130));
+
+        t1.start();
+        t2.start();
+        t3.start();
+        t4.start();
+
+        System.out.println(
+            "Station 1 alive: " + t1.isAlive());
+
+        t1.join();
+        t2.join();
+        t3.join();
+        t4.join();
+
+        System.out.println("All stations completed.");
+        System.out.println("Total scripts scanned: 500");
+    }
+}
+
+
+
+Expected output
+Station 1 started.
+Station 2 started.
+Station 3 started.
+Station 4 started.
+Station 1 alive: true
+Station 3 scanned 120 scripts.
+Station 1 scanned 100 scripts.
+Station 2 scanned 150 scripts.
+Station 4 scanned 130 scripts.
+All stations completed.
+Total scripts scanned: 500
+
+
+Again, the output order is not guaranteed.
+4. Difference Between Thread and Runnable – Student A
+Extending Thread	Implementing Runnable
+Class extends Thread.	Class implements Runnable.
+Override run().	Implement run().
+Create the thread directly using the class object.	Pass the Runnable object to a Thread object.
+Cannot extend another class because Java supports single inheritance.	Can extend another class.
+Less flexible for separating work and thread management.	Separates the task from the thread.
+
+Preferred method: Implementing Runnable is generally preferred because it separates the scanning task from thread management and allows the task to be used with thread pools.
+5. Thread Life-Cycle State Diagram – Student A
+NEW
+
+Thread object created
+
+start()
+
+RUNNABLE
+
+Ready or running on the CPU
+
+sleep()
+TIMED_WAITING
+
+Sleep completes
+RUNNABLE
+
+
+
+join() / lock wait
+WAITING / BLOCKED
+
+Wait ends / lock acquired
+RUNNABLE
+
+
+
+
+run() completes
+TERMINATED
+
+Thread execution finished
+
+
+
+Explanation of states:
+1. NEW: The thread object is created but has not started.
+2. RUNNABLE: The thread is ready to run or is currently running.
+3. BLOCKED: The thread is waiting to acquire a monitor lock.
+4. WAITING: The thread waits indefinitely for another thread's action, such as an indefinite join().
+5. TIMED_WAITING: The thread waits for a specified time, such as during sleep(1000).
+6. TERMINATED: The run() method has completed.
+Note: Java groups ready and running under the RUNNABLE state.
+States experienced by each scanner station
+NEW → RUNNABLE → TIMED_WAITING → RUNNABLE → TERMINATED
+
+The main thread can enter WAITING when it calls join().
+6. Why Does run() Not Create a New Thread?
+Calling start() creates a separate thread of execution and then invokes its run() method.
+
+Calling run() directly executes it like an ordinary method in the current thread.
+
+Example:
+class TestThread extends Thread {
+    public void run() {
+        System.out.println(
+            "Running in: " +
+            Thread.currentThread().getName());
+    }
+}
+
+public class RunTest {
+    public static void main(String[] args) {
+        TestThread t1 = new TestThread();
+
+        t1.run();
+        t1.start();
+    }
+}
+
+
+Expected output:
+Running in: main
+Running in: Thread-0
+
+
+Observation:
+- t1.run() executes in the main thread.
+- t1.start() executes in a separate thread.
+- Therefore, run() alone does not create a new thread.
+7. Importance of join()
+The join() method makes the calling thread wait until the specified thread completes.
+
+Example:
+t1.join();
+t2.join();
+t3.join();
+t4.join();
+
+System.out.println("Total scripts scanned: 500");
+
+
+Without join(), the main thread may print the final total before all stations finish.
+
+With join(), the main thread waits for all four stations. Therefore, the final total is printed only after all stations complete.
+8. Behavioural Experiments – Student B
+Experiment 1: Run the program ten times
+Execute the program at least ten times and record the order in which stations finish.
+
+Example format for your observations:
+Run	First station finished	Second	Third	Fourth
+1	Record output	Record output	Record output	Record output
+2	Record output	Record output	Record output	Record output
+3	Record output	Record output	Record output	Record output
+4	Record output	Record output	Record output	Record output
+5	Record output	Record output	Record output	Record output
+6	Record output	Record output	Record output	Record output
+7	Record output	Record output	Record output	Record output
+8	Record output	Record output	Record output	Record output
+9	Record output	Record output	Record output	Record output
+10	Record output	Record output	Record output	Record output
+
+Do not copy one assumed order into all ten rows. Record the actual completion order shown on your computer.
+Experiment 2: Thread priorities
+Java provides three priority levels:
+Priority	Value
+Minimum	1
+Normal	5
+Maximum	10
+
+Add these statements before starting the threads:
+t1.setPriority(Thread.MIN_PRIORITY);
+t2.setPriority(Thread.NORM_PRIORITY);
+t3.setPriority(Thread.MAX_PRIORITY);
+t4.setPriority(Thread.MIN_PRIORITY);
+
+
+Observation: A higher-priority thread may receive more scheduling preference, but Java does not guarantee that it will finish first. The operating system and JVM scheduler influence execution.
+Experiment 3: Daemon thread
+A daemon thread is a background thread. The JVM can exit when only daemon threads remain.
+
+Example:
+class ScannerTask extends Thread {
+    public void run() {
+        try {
+            for (int i = 1; i <= 5; i++) {
+                System.out.println("Scanning " + i);
+                Thread.sleep(1000);
+            }
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+    }
+}
+
+public class DaemonDemo {
+    public static void main(String[] args) {
+        ScannerTask t1 = new ScannerTask();
+
+        t1.setDaemon(true);
+        t1.start();
+
+        System.out.println("Main thread finished.");
+    }
+}
+
+
+Possible output:
+Main thread finished.
+Scanning 1
+
+
+The exact output can vary. The daemon thread may print some messages or none before the JVM exits.
+
+Important: Daemon threads should not be used for essential tasks such as saving examination results. Their work is not guaranteed to finish when the JVM shuts down.
+9. Joint Conclusion
+The same multithreaded program can produce different output orders on different runs because:
+1. The JVM scheduler decides which thread gets CPU time.
+2. Threads execute independently.
+3. Some threads may finish sleep() earlier than others.
+4. Operating-system scheduling affects execution.
+5. Thread priority does not guarantee execution order.
+Why should a correct program not depend on output order?
+
+A correct multithreaded program must produce the correct result regardless of which thread finishes first. It should use join(), synchronization or other coordination mechanisms instead of assuming a particular execution order.
+10. Alternative Concept – ExecutorService
+Instead of creating four Thread objects manually, we can use an ExecutorService with a fixed thread pool.
+
+A fixed thread pool manages a specified number of worker threads and assigns tasks to them.
+Java implementation
+
+import java.util.concurrent.*;
+
+public class ExecutorDemo {
+    public static void main(String[] args)
+            throws InterruptedException, ExecutionException {
+
+        ExecutorService executor =
+            Executors.newFixedThreadPool(4);
+
+        int[] scripts = {100, 150, 120, 130};
+
+        Future<Integer>[] results = new Future[4];
+
+        for (int i = 0; i < 4; i++) {
+            final int station = i + 1;
+            final int count = scripts[i];
+
+            results[i] = executor.submit(() -> {
+                System.out.println(
+                    "Station " + station + " started.");
+
+                try {
+                    Thread.sleep(1000);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
+
+                System.out.println(
+                    "Station " + station +
+                    " scanned " + count + " scripts.");
+
+                return count;
+            });
+        }
+
+        int total = 0;
+
+        for (int i = 0; i < 4; i++) {
+            total += results[i].get();
+        }
+
+        executor.shutdown();
+
+        System.out.println("All stations completed.");
+        System.out.println(
+            "Total scripts scanned: " + total);
+    }
+}
+
+
+
+Expected output
+Station 1 started.
+Station 2 started.
+Station 3 started.
+Station 4 started.
+Station 2 scanned 150 scripts.
+Station 1 scanned 100 scripts.
+Station 3 scanned 120 scripts.
+Station 4 scanned 130 scripts.
+All stations completed.
+Total scripts scanned: 500
+
+
+The completion order may vary. Calling Future.get() waits for the corresponding task to finish before returning its result.
+11. Time and Space Complexity Analysis
+Let:
+- n = total number of answer scripts.
+- p = number of worker threads.
+- s = memory required for one thread's stack.
+Time complexity
+If all scripts require approximately equal processing time and work is distributed evenly:
+\[
+T(n,p) \approx O(n/p)
+\]
+
+For example, if 1,000 scripts are divided equally among four stations, each station processes approximately 250 scripts.
+
+Actual execution time also depends on thread creation, scheduling, I/O speed and task distribution.
+Space complexity
+Approach	Thread stack memory	Other memory
+Extending Thread	O(p × s)	O(n) if all task data is stored
+Implementing Runnable	O(p × s)	O(n) if all task data is stored
+Fixed ExecutorService	O(p × s)	O(n) if all tasks are queued
+
+- Creating four individual threads uses approximately four thread stacks.
+- A fixed thread pool of four workers also uses approximately four thread stacks.
+- ExecutorService can reuse worker threads instead of repeatedly creating new threads.
+- If tasks are submitted gradually, the task queue can use less memory than storing all tasks at once.
+For a large number of scanning tasks, ExecutorService is generally preferred because it controls the number of worker threads and supports thread reuse.
+12. Final Result
+- Successfully created scanner stations using the Thread class.
+- Successfully created scanner stations using the Runnable interface.
+- Demonstrated start(), sleep(), join() and isAlive().
+- Understood the thread life cycle.
+- Compared normal threads, thread priorities and daemon threads.
+- Analysed ExecutorService as an alternative approach.
+- Verified that all four stations together scan 500 scripts.
+Final conclusion: Multithreading allows multiple scanner stations to process answer scripts concurrently. Runnable and ExecutorService provide flexible ways to manage tasks, while join() ensures that the final result is calculated only after all required stations complete.
+13. Shared Group Work
+Student A – Thread Design	Student B – Behavioural Experiments
+Explain Thread and Runnable	Run the program ten times
+Draw thread life-cycle diagram	Record completion order
+Explain run() vs start()	Test thread priorities
+Explain join()	Test daemon thread
+Explain final total calculation	Explain scheduler behaviour
+
+Both students: Execute both implementations, capture screenshots, compare results and explain why the output order changes between runs.
