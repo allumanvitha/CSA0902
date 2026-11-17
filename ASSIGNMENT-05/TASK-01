@@ -1,0 +1,369 @@
+PART A – PERSISTENCE DESIGN & PSEUDOCODE
+TASK A1 – DESIGN A FILE FORMAT (7 Marks)
+Problem: Transport Office Bus-Pass Records
+
+The university transport office stores approximately 8,000 bus-pass records every year. Each record contains seven fields.
+A1.1 – Represent the Record (2 Marks)
+(a) Delimited Text File Design
+
+Use the pipe symbol (|) as the delimiter.
+
+Record format:
+PassID|RegisterNo|Name|RouteNo|BoardingStop|ValidityDate|AmountPaid
+
+
+Example:
+BP101|23CSE001|Ravi Kumar|12|Tambaram|2027-06-30|5000
+BP102|23ECE015|Priya|15|Guindy|2027-06-30|4500
+BP103|23IT020|Arun Kumar|12|Chromepet|2027-06-30|5000
+
+
+Field description:
+Field	Data type	Example
+Pass ID	String	BP101
+Register Number	String	23CSE001
+Name	String	Ravi Kumar
+Route Number	Integer	12
+Boarding Stop	String	Tambaram
+Validity Date	Date (YYYY-MM-DD)	2027-06-30
+Amount Paid	Decimal	5000.00
+
+Handling names containing the delimiter:
+
+If a name contains the pipe symbol, escape it using a backslash.
+
+Example:
+BP104|23CSE030|Ravi\|Kumar|12|Tambaram|2027-06-30|5000
+
+
+A backslash inside a field must also be escaped as \\. The reading program must decode these escape sequences correctly.
+
+Advantages:
+- Easy to read and understand.
+- Easy to edit using a text editor.
+- Requires less storage for ordinary records.
+- Suitable for a small transport office application.
+(b) Binary File Design using DataOutputStream
+
+Use DataOutputStream to store records in binary format.
+Field	Binary representation
+Pass ID	writeUTF()
+Register Number	writeUTF()
+Name	writeUTF()
+Route Number	writeInt()
+Boarding Stop	writeUTF()
+Validity Date	writeUTF()
+Amount Paid	writeDouble()
+
+Field order:
+Pass ID
+Register Number
+Name
+Route Number
+Boarding Stop
+Validity Date
+Amount Paid
+
+
+Example Java writing statements:
+DataOutputStream out = new DataOutputStream(
+    new FileOutputStream("passes.dat", true));
+
+out.writeUTF("BP101");
+out.writeUTF("23CSE001");
+out.writeUTF("Ravi Kumar");
+out.writeInt(12);
+out.writeUTF("Tambaram");
+out.writeUTF("2027-06-30");
+out.writeDouble(5000.00);
+
+out.close();
+
+
+Advantages:
+- Stores data in compact binary form.
+- Supports different data types.
+- Faster to read and write structured values in many situations.
+- Prevents ordinary users from easily modifying the data using a text editor.
+Disadvantage: Binary files are not directly human-readable, and reading must follow exactly the same field order and data types used during writing.
+A1.2 – Design the Operations (3 Marks)
+We need three operations:
+1. Add a new bus pass.
+2. Find a bus pass using Pass ID.
+3. List all bus passes belonging to a particular route.
+Stream classes used:
+Stream class	Purpose
+FileReader	Reads character data from a text file
+BufferedReader	Reads text efficiently, line by line
+FileWriter	Writes character data to a text file
+BufferedWriter	Writes text efficiently using buffering
+FileInputStream	Reads raw bytes, useful for binary files
+FileOutputStream	Writes raw bytes, useful for binary files
+
+For the delimited text design, BufferedReader and BufferedWriter are preferred because the application processes complete records one line at a time.
+Algorithm 1 – Add a New Pass
+Pseudocode
+ALGORITHM AddNewPass
+
+START
+
+INPUT PassID, RegisterNo, Name
+INPUT RouteNo, BoardingStop
+INPUT ValidityDate, AmountPaid
+
+IF any required field is empty THEN
+    OUTPUT "Invalid input"
+    STOP
+END IF
+
+OPEN file using BufferedReader
+
+FOR each existing record
+    IF record PassID equals new PassID THEN
+        OUTPUT "Pass already exists"
+        CLOSE file
+        STOP
+    END IF
+END FOR
+
+CLOSE file
+
+ENCODE special characters in text fields
+
+OPEN file using BufferedWriter in append mode
+
+WRITE new pass record
+WRITE newline
+
+CLOSE file
+
+OUTPUT "Pass added successfully"
+
+END
+
+
+Explanation: The application checks whether the Pass ID already exists. If it does not exist, the new record is appended to the text file.
+Algorithm 2 – Find a Pass by Pass ID
+Pseudocode
+ALGORITHM FindPass
+
+START
+
+INPUT SearchPassID
+
+IF file does not exist THEN
+    OUTPUT "Pass file not found"
+    STOP
+END IF
+
+OPEN file using BufferedReader
+
+Found ← FALSE
+
+WHILE another line is available
+
+    READ one line
+
+    IF line is valid THEN
+
+        DECODE record
+
+        IF record PassID equals SearchPassID THEN
+
+            OUTPUT complete pass details
+
+            Found ← TRUE
+            EXIT LOOP
+
+        END IF
+
+    ELSE
+
+        OUTPUT "Damaged record skipped"
+
+    END IF
+
+END WHILE
+
+CLOSE file
+
+IF Found = FALSE THEN
+    OUTPUT "Pass not found"
+END IF
+
+END
+
+
+Explanation: The application reads each line and compares its Pass ID with the requested ID. When a match is found, it displays the complete record.
+Algorithm 3 – List Passes by Route Number
+Pseudocode
+ALGORITHM ListPassesByRoute
+
+START
+
+INPUT SearchRouteNo
+
+IF file does not exist THEN
+    OUTPUT "Pass file not found"
+    STOP
+END IF
+
+OPEN file using BufferedReader
+
+Found ← FALSE
+
+WHILE another line is available
+
+    READ one line
+
+    IF line is valid THEN
+
+        DECODE record
+
+        IF record RouteNo = SearchRouteNo THEN
+
+            OUTPUT complete pass details
+
+            Found ← TRUE
+
+        END IF
+
+    ELSE
+
+        OUTPUT "Damaged record skipped"
+
+    END IF
+
+END WHILE
+
+CLOSE file
+
+IF Found = FALSE THEN
+    OUTPUT "No passes found for this route"
+END IF
+
+END
+
+
+Explanation: The application reads all records and displays only the records whose route number matches the user's input.
+A1.3 – Design for Damaged Data (2 Marks)
+A file may become damaged because of power failure, unexpected program termination or incorrect manual editing.
+
+1. Damaged Line
+- Check whether each line contains all seven fields.
+- Validate the route number and amount.
+- Validate the date format.
+- Check whether the Pass ID is present.
+- Skip invalid records and write their line numbers to an error log.
+- Continue processing the remaining records.
+Example:
+BP105|23CSE010|Ravi|12
+
+
+This record is incomplete because it contains only four fields.
+
+Expected message:
+Damaged record found.
+Record skipped.
+
+
+2. Missing File
+- Check whether the file exists before reading.
+- If the file is missing during a search or listing operation, display an error message.
+- When adding the first record, create the file if it does not exist.
+- Do not treat a missing file as proof that a searched pass does not exist.
+Example:
+File file = new File("passes.txt");
+
+if (!file.exists()) {
+    System.out.println("Pass file not found.");
+}
+
+
+3. Incomplete Write Due to Power Failure
+
+Use the following protection methods:
+1. Write each record as a complete line.
+2. Flush buffered data and close the file safely.
+3. Include a checksum or record-length validation to detect incomplete records.
+4. Write updates to a temporary file before replacing the original file.
+5. Use an atomic file replacement operation where the file system supports it.
+6. Keep a backup of the original file.
+For an append-based design, a partially written final line should be detected and rejected rather than treated as a valid record.
+Alternative Concept and Complexity Analysis
+Question: What if the records are stored using RandomAccessFile with fixed-length records?
+1. RandomAccessFile Design
+A RandomAccessFile allows the program to move directly to a particular position in the file.
+
+Assume each record has a fixed size of 200 bytes.
+
+The position of record i is:
+\[
+Position = i \times RecordSize
+\]
+
+Example:
+RandomAccessFile file =
+    new RandomAccessFile("passes.dat", "rw");
+
+int recordSize = 200;
+int recordIndex = 5;
+
+file.seek((long) recordIndex * recordSize);
+
+
+This moves the file pointer directly to record number 5.
+2. Time Complexity Comparison
+Operation	Delimited text file	Fixed-length RandomAccessFile
+Add record	O(1) append, ignoring validation scan	O(1) if an unused slot is known
+Find by ID	O(n) scan	O(n) scan without an index
+Read known record position	O(n) sequential traversal in general	O(1) seek
+List by route	O(n) scan	O(n) scan without a route index
+
+Important evaluation: Random access gives O(1) access when the record's index or position is already known. Finding a record by Pass ID is not automatically O(1). The application must scan records or maintain an additional Pass ID-to-position index.
+3. Space Wasted by Padding
+Fixed-length records reserve the same amount of space for every field, even when the actual data is shorter.
+
+Example:
+Field	Allocated size	Actual data
+Pass ID	20 bytes	5 bytes
+Register Number	20 bytes	9 bytes
+Name	50 bytes	10 bytes
+Route Number	4 bytes	4 bytes
+Boarding Stop	50 bytes	10 bytes
+Validity Date	10 bytes	10 bytes
+Amount Paid	8 bytes	8 bytes
+Total	162 bytes	56 bytes
+
+Wasted space per record:
+\[
+162-56=106\text{ bytes}
+\]
+
+For 8,000 records:
+\[
+106\times8000=848,000\text{ bytes}
+\]
+
+Approximately 828 KiB is wasted in this example, excluding any additional record headers or indexing information.
+4. Final Comparison
+Feature	Text File	RandomAccessFile
+Readability	Human-readable	Binary / fixed format
+Finding by ID	Sequential search	Sequential search unless indexed
+Known-position access	Not direct	O(1) seek
+Storage	Variable-length	Fixed-length
+Padding waste	No fixed-field padding	Possible
+Updating records	Usually rewrite or append	Can update at a known position
+Implementation	Simple	More complex
+
+Final Decision: For 8,000 bus-pass records, a delimited text file is a simple and suitable choice because it is easy to read, maintain and edit. If the application requires frequent direct access to records and their positions are known, RandomAccessFile is useful. If fast lookup by Pass ID is important, an additional index should be maintained.
+
+Evidence Expected for A1
+- [ ] Delimited text-file record layout.
+- [ ] Binary-file record layout.
+- [ ] Pseudocode for adding a pass.
+- [ ] Pseudocode for finding a pass.
+- [ ] Pseudocode for listing passes by route.
+- [ ] Damaged-data handling explanation.
+- [ ] RandomAccessFile alternative and complexity analysis.
+Please send the remaining assignment from “TASK A2 – DON’T READ WHAT YOU DON’T NE…” onward. I can continue A2, A3 and the implementation/experimental investigation in the same report-ready format.
