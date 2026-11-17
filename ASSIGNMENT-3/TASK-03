@@ -1,0 +1,384 @@
+Q3 – Resource Safety, Debugging and Robust Code
+Marks: 7
+Bloom’s Level: K4 – Analyse
+1. Problem Analysis
+A retail chain generates a daily sales report by reading multiple store files and writing the total sales into a summary file.
+
+The program may face these problems:
+1. A store file may be missing.
+2. A file may contain invalid data.
+3. An input or output operation may fail.
+4. Files may remain open if the program does not close them properly.
+5. The report may be incomplete if an error occurs during processing.
+The main objective is to compare manual resource closing with try-with-resources.
+2. Resources Used in the Program
+Resource	Purpose	Must be closed?
+BufferedReader	Reads each store file	Yes
+FileReader	Connects to a store file	Yes
+BufferedWriter	Writes the summary report	Yes
+FileWriter	Creates or writes the report file	Yes
+
+Closing a BufferedReader also closes its underlying FileReader. Similarly, closing a BufferedWriter closes its underlying FileWriter.
+3. Version 1 – Manual Resource Closing
+In this example, the program closes files manually after successful processing. The catch and finally blocks are present, but the close operations are incorrectly placed only on the successful path. This intentionally demonstrates a resource leak.
+
+import java.io.*;
+import java.util.*;
+
+public class ManualReport {
+    static int openFiles = 0;
+
+    public static void main(String[] args) {
+        BufferedReader reader = null;
+        BufferedWriter writer = null;
+
+        try {
+            writer = new BufferedWriter(
+                new FileWriter("summary.txt"));
+            openFiles++;
+
+            String[] files = {
+                "store1.txt",
+                "store2.txt",
+                "store3.txt"
+            };
+
+            int total = 0;
+
+            for (String file : files) {
+                System.out.println("Reading: " + file);
+
+                reader = new BufferedReader(
+                    new FileReader(file));
+                openFiles++;
+
+                String line;
+
+                while ((line = reader.readLine()) != null) {
+                    if (line.equals("FAIL")) {
+                        throw new IOException(
+                            "Invalid sales data in " + file);
+                    }
+
+                    total += Integer.parseInt(line);
+                }
+
+                reader.close();
+                openFiles--;
+                reader = null;
+            }
+
+            writer.write("Total Sales: " + total);
+
+            // Manual close after successful processing
+            writer.close();
+            openFiles--;
+            writer = null;
+
+            System.out.println("Report generated.");
+        }
+        catch (IOException | NumberFormatException e) {
+            System.out.println("Error: " + e.getMessage());
+        }
+        finally {
+            System.out.println(
+                "Files still open: " + openFiles);
+        }
+    }
+}
+
+
+
+Important: This is deliberately faulty code for demonstrating the leak. The finally block reports the open-file count but does not close the resources. In a corrected manual implementation, both resources must be closed in finally.
+4. Version 2 – Try-with-Resources
+Try-with-resources automatically closes resources when the try block finishes, whether it finishes normally or an exception occurs.
+
+import java.io.*;
+
+public class SafeReport {
+    static int openFiles = 0;
+
+    public static void main(String[] args) {
+        String[] files = {
+            "store1.txt",
+            "store2.txt",
+            "store3.txt"
+        };
+
+        int total = 0;
+
+        try (BufferedWriter writer =
+                 new BufferedWriter(
+                     new FileWriter("summary.txt"))) {
+
+            openFiles++;
+
+            try {
+                for (String file : files) {
+                    System.out.println("Reading: " + file);
+
+                    try (BufferedReader reader =
+                             new BufferedReader(
+                                 new FileReader(file))) {
+
+                        openFiles++;
+
+                        String line;
+
+                        while ((line = reader.readLine()) != null) {
+                            if (line.equals("FAIL")) {
+                                throw new IOException(
+                                    "Invalid sales data in " + file);
+                            }
+
+                            total += Integer.parseInt(line);
+                        }
+                    }
+                    finally {
+                        // Reader has been closed automatically
+                        // after its try-with-resources block.
+                        // Update the demonstration counter.
+                        if (openFiles > 1) {
+                            openFiles--;
+                        }
+                    }
+                }
+
+                writer.write("Total Sales: " + total);
+                System.out.println("Report generated.");
+            }
+            catch (IOException | NumberFormatException e) {
+                System.out.println("Error: " + e.getMessage());
+            }
+        }
+        catch (IOException e) {
+            System.out.println("Report file error: " + e.getMessage());
+        }
+        finally {
+            // The writer is now closed automatically.
+            if (openFiles > 0) {
+                openFiles--;
+            }
+
+            System.out.println(
+                "Files still open: " + openFiles);
+        }
+    }
+}
+
+
+
+Note: The counter is illustrative bookkeeping, not an operating-system measurement. For precise experimental evidence, inspect actual process file handles or use a resource-tracking wrapper. The nested try-with-resources structure guarantees that the reader closes before processing continues and the writer closes when the outer block exits.
+5. Test Input Files
+Create these three text files in the same folder as the Java program.
+
+store1.txt
+100
+200
+
+
+store2.txt
+300
+FAIL
+
+
+store3.txt
+400
+
+
+The word FAIL deliberately causes an IOException after the second file has been opened and some data has been read.
+Failure test – Manual version
+Expected console output:
+Reading: store1.txt
+Reading: store2.txt
+Error: Invalid sales data in store2.txt
+Files still open: 2
+
+
+The two remaining open resources are:
+- store2.txt reader
+- summary.txt writer
+The first store file was closed successfully.
+Failure test – Try-with-resources version
+Expected console output:
+Reading: store1.txt
+Reading: store2.txt
+Error: Invalid sales data in store2.txt
+Files still open: 0
+
+
+When the exception occurs, Java automatically closes the reader for store2.txt. After the exception is handled, the outer try-with-resources block closes the summary writer.
+
+Comparison
+Measurement	Manual version	Try-with-resources
+Files opened before failure	3	3
+Files closed before failure	1	1
+Files remaining open after failure	2	0
+Resource leak	Yes	No
+Report complete	No	No
+
+The open-file counts above are the expected values for this example's tracking counter, not measurements from the operating system.
+6. Successful Execution Test
+For a successful test, replace the contents of store2.txt with:
+300
+
+
+The three files now contain:
+- Store 1: 100 + 200 = 300
+- Store 2: 300
+- Store 3: 400
+Expected report file (summary.txt):
+Total Sales: 1000
+
+
+Both implementations should generate the same report when all files are valid.
+7. Debugging and Experimental Analysis – Student A
+Student A should use breakpoints in VS Code to identify where the manual version leaks resources.
+
+Suggested breakpoint locations:
+1. Before opening store2.txt.
+2. After creating its BufferedReader.
+3. At the line that checks line.equals("FAIL").
+4. Inside the catch block.
+5. Inside the finally block.
+Debugging observations:
+- When store2.txt opens, the reader count increases.
+- The program reads 300.
+- When it reads FAIL, an exception occurs.
+- The normal reader.close() statement is skipped.
+- The writer's normal close() statement is also skipped.
+- The faulty finally block does not close either resource.
+Logging the file that caused the failure
+Add this statement before throwing the exception:
+System.out.println("Failure occurred in file: " + file);
+
+
+Expected log:
+Failure occurred in file: store2.txt
+
+
+This helps identify which store file caused the report-generation failure.
+8. Design and Correctness – Student B
+Why can manual closing cause a resource leak?
+In manual resource management, the programmer must remember to close every opened resource.
+
+If an exception occurs before the close() statement:
+- The reader may remain open.
+- The writer may remain open.
+- The operating system continues to hold the file handles.
+- Repeated failures can eventually cause the error Too many open files.
+How does try-with-resources guarantee closing?
+Try-with-resources automatically closes resources when control exits the resource block, including when an exception occurs.
+
+Closing order:
+
+If resources are declared in this order:
+try (BufferedWriter writer = ...;
+     BufferedReader reader = ...) {
+    // Processing
+}
+
+
+They close in reverse order:
+1. BufferedReader closes first.
+2. BufferedWriter closes second.
+This is called reverse declaration order.
+What is a suppressed exception?
+A suppressed exception occurs when the main try block throws an exception and closing a resource also throws another exception.
+- The original exception remains the primary exception.
+- The closing exception is attached as a suppressed exception.
+- It can be accessed using getSuppressed().
+Example:
+catch (Exception e) {
+    System.out.println("Main error: " + e.getMessage());
+
+    for (Throwable s : e.getSuppressed()) {
+        System.out.println(
+            "Suppressed error: " + s.getMessage());
+    }
+}
+
+
+This helps preserve both the original processing failure and the resource-closing failure.
+9. Joint Engineering Decision
+Try-with-resources is very useful, but it is not sufficient by itself to make the complete report generator robust.
+
+Additional checks are required:
+1. Input validation: Check whether sales values are valid numbers.
+2. File validation: Check whether input files exist and are readable.
+3. Exception handling: Handle missing files, permission errors and invalid data.
+4. Data consistency: Avoid generating a report with incomplete sales information.
+5. Atomic report generation: Write to a temporary file and rename it to the final report only after successful processing.
+6. Logging: Record the file name, error details and time of failure.
+7. Disk-space checking: Handle insufficient storage when writing the report.
+Try-with-resources guarantees resource closing; it does not guarantee correct data or a complete report.
+10. Alternative Concept and Complexity Analysis
+A. Using explicit close() in a finally block
+Instead of try-with-resources, resources can be closed manually in finally.
+
+A safer manual pattern is:
+finally {
+    try {
+        if (reader != null) {
+            reader.close();
+        }
+    } catch (IOException e) {
+        System.out.println("Reader closing failed.");
+    }
+
+    try {
+        if (writer != null) {
+            writer.close();
+        }
+    } catch (IOException e) {
+        System.out.println("Writer closing failed.");
+    }
+}
+
+
+Each resource has its own try-catch, so a failure while closing the reader does not prevent the writer from being closed.
+
+Comparison:
+- Manual closing requires more code.
+- The programmer must handle closing every resource.
+- Try-with-resources performs closing automatically.
+- If no closing is performed, resources may remain open until the operating system or garbage collector eventually releases them; this is not reliable resource management.
+B. Time complexity
+Let:
+- f = number of store files.
+- n = total number of sales records across all files.
+Each record is read and processed once.
+Operation	Time complexity
+Opening and closing f files	O(f)
+Reading and processing n records	O(n)
+Writing the summary	O(1) for a fixed-size summary
+Total processing	O(n + f)
+
+C. Space complexity and maximum open file handles
+Implementation	Maximum open handles in this example
+Manual version during successful processing	2
+Manual version after the demonstrated failure	2 remain open
+Try-with-resources during processing	2
+Try-with-resources after failure	0
+
+The maximum during processing is two because the program keeps one reader and one writer open at a time.
+
+If a manual implementation does not close resources across repeated file-processing iterations, its open handles can grow to O(f). If it never closes any resources, it can eventually exhaust the operating system's file-handle limit.
+
+Try-with-resources keeps the number of simultaneously open handles bounded at O(1) for this design.
+11. Final Conclusion
+- Manual resource closing can cause file leaks when exceptions occur and closing is not handled correctly.
+- Try-with-resources automatically closes files and reduces programming errors.
+- Both approaches can generate the same report for valid input.
+- For invalid input, the application should record the error and avoid publishing an incomplete report.
+- Logging, validation and proper exception handling are also necessary for a reliable system.
+Final result: Try-with-resources is the preferred approach because it provides safer resource management, prevents the demonstrated file-handle leak and makes the code easier to maintain.
+12. Shared Group Work
+Student A – Debugging and Experimental Analysis	Student B – Design and Correctness
+Set breakpoints and debug the manual version	Identify all opened resources
+Create input that fails part-way	Explain manual resource leaks
+Count resources left open	Explain automatic closing
+Add failure logging	Explain suppressed exceptions
+Compare both versions	Analyse correctness and safety
+
+Both students: Execute the successful and failing test cases, capture screenshots, compare the generated reports and explain the final engineering decision.
