@@ -1,0 +1,443 @@
+TASK B1 – IMPLEMENT AND INSTRUMENT THE FILE STORE (7 Marks)
+This task implements the bus-pass file store using a CSV text file and measures the performance of buffered and unbuffered file reading.
+B1.1 – Validate the Implementation (2 Marks)
+1. Complete the TODO 1 code
+The find() method reads the file one line at a time. It skips damaged lines that do not contain exactly five fields and returns the matching pass details.
+
+public String[] find(String passId) throws IOException {
+
+    try (BufferedReader r = Files.newBufferedReader(file)) {
+
+        String line;
+
+        while ((line = r.readLine()) != null) {
+
+            String[] fields = line.split(",", -1);
+
+            // Skip damaged records
+            if (fields.length != 5) {
+                continue;
+            }
+
+            // Search using Pass ID
+            if (fields[0].equals(passId)) {
+                return fields;
+            }
+        }
+    }
+
+    return null;
+}
+
+
+
+2. Complete Java Program
+Save the following code as PassStore.java.
+
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
+
+public class PassStore {
+
+    private final Path file;
+
+    PassStore(Path file) {
+        this.file = file;
+    }
+
+    public void add(String passId, String regNo, String name,
+                    int route, double amount) throws IOException {
+
+        try (BufferedWriter w = Files.newBufferedWriter(file,
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND)) {
+
+            w.write(String.join(",", passId, regNo, name,
+                    String.valueOf(route),
+                    String.valueOf(amount)));
+            w.newLine();
+        }
+    }
+
+    public String[] find(String passId) throws IOException {
+
+        try (BufferedReader r = Files.newBufferedReader(file)) {
+
+            String line;
+
+            while ((line = r.readLine()) != null) {
+
+                String[] fields = line.split(",", -1);
+
+                if (fields.length != 5) {
+                    continue;
+                }
+
+                if (fields[0].equals(passId)) {
+                    return fields;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public void list() throws IOException {
+
+        try (BufferedReader r = Files.newBufferedReader(file)) {
+
+            String line;
+
+            while ((line = r.readLine()) != null) {
+
+                String[] fields = line.split(",", -1);
+
+                if (fields.length == 5) {
+                    System.out.println(Arrays.toString(fields));
+                }
+            }
+        }
+    }
+
+    public static void main(String[] args) throws IOException {
+
+        Path f = Files.createTempFile("passes", ".csv");
+
+        PassStore store = new PassStore(f);
+
+        store.add("P1001", "192311001", "Arun", 12, 4500);
+        Files.writeString(f, "P1002,DAMAGED LINE\n",
+                StandardOpenOption.APPEND);
+        store.add("P1003", "192311003", "Divya", 7, 3800);
+
+        System.out.println("Find existing pass:");
+        System.out.println(Arrays.toString(store.find("P1003")));
+
+        System.out.println("Find damaged/non-existing pass:");
+        System.out.println(Arrays.toString(store.find("P1002")));
+
+        System.out.println("Find unknown pass:");
+        System.out.println(Arrays.toString(store.find("P9999")));
+
+        System.out.println("List valid passes:");
+        store.list();
+
+        Files.delete(f);
+    }
+}
+
+
+
+Expected output:
+Find existing pass:
+[P1003, 192311003, Divya, 7, 3800.0]
+
+Find damaged/non-existing pass:
+null
+
+Find unknown pass:
+null
+
+List valid passes:
+[P1001, 192311001, Arun, 12, 4500.0]
+[P1003, 192311003, Divya, 7, 3800.0]
+
+
+The damaged record is skipped because it contains only two comma-separated fields instead of five. The continue statement moves to the next line, so the search continues without stopping.
+3. Test Cases and Verification
+Test	Input / condition	Expected result	What it verifies
+Normal case	Search P1003	Divya's pass details	Correct search
+Damaged record	Search P1002	null	Damaged line is skipped
+Missing ID	Search P9999	null	Handles IDs that do not exist
+List records	Display all records	Only P1001 and P1003	Damaged records are excluded
+
+B1.2 – Compare with Your Design (1 Mark)
+The implementation follows the Part A design:
+- BufferedWriter is used to add pass records to the text file.
+- BufferedReader reads the file line by line.
+- find() searches using the pass ID.
+- list() displays all valid pass records.
+- Damaged records are skipped instead of stopping the program.
+- Try-with-resources automatically closes the file.
+Change made: The original design included seven fields, but the supplied program uses five fields: pass ID, register number, name, route and amount. Therefore, the implementation validates exactly five fields. The supplied format also uses commas instead of the pipe (|) delimiter from Part A.
+B1.3 – Measure the Effect of Buffering (2 Marks)
+Aim: Compare the time taken by unbuffered and buffered file reading for 1 MB, 10 MB and 50 MB files.
+Java benchmark code
+Save this as BufferTest.java.
+
+import java.io.*;
+import java.nio.file.*;
+
+public class BufferTest {
+
+    static long countUnbuffered(String file) throws Exception {
+        long lines = 0;
+
+        try (FileInputStream in = new FileInputStream(file)) {
+            int ch;
+
+            while ((ch = in.read()) != -1) {
+                if (ch == '\n') {
+                    lines++;
+                }
+            }
+        }
+
+        return lines;
+    }
+
+    static long countBuffered(String file) throws Exception {
+        long lines = 0;
+
+        try (BufferedInputStream in =
+                new BufferedInputStream(new FileInputStream(file))) {
+
+            int ch;
+
+            while ((ch = in.read()) != -1) {
+                if (ch == '\n') {
+                    lines++;
+                }
+            }
+        }
+
+        return lines;
+    }
+
+    static void createFile(String file, int sizeMB)
+            throws Exception {
+
+        long target = sizeMB * 1024L * 1024L;
+        long written = 0;
+
+        try (BufferedWriter out =
+                Files.newBufferedWriter(Path.of(file))) {
+
+            while (written < target) {
+                String line = "Attendance record 123456789\n";
+                out.write(line);
+                written += line.getBytes().length;
+            }
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        int[] sizes = {1, 10, 50};
+
+        for (int size : sizes) {
+
+            String file = "attendance" + size + ".txt";
+
+            createFile(file, size);
+
+            // Warm-up
+            countBuffered(file);
+
+            long start = System.nanoTime();
+            countUnbuffered(file);
+            long end = System.nanoTime();
+
+            double unbufferedTime =
+                    (end - start) / 1_000_000.0;
+
+            start = System.nanoTime();
+            countBuffered(file);
+            end = System.nanoTime();
+
+            double bufferedTime =
+                    (end - start) / 1_000_000.0;
+
+            System.out.println(size + " MB");
+            System.out.println("Unbuffered: "
+                    + unbufferedTime + " ms");
+            System.out.println("Buffered: "
+                    + bufferedTime + " ms");
+            System.out.println();
+        }
+    }
+}
+
+
+
+Run commands in VS Code terminal:
+javac BufferTest.java
+java BufferTest
+
+
+Measurement table
+Run the program on your laptop and enter the actual results here. Do not copy imaginary timings.
+File size	Unbuffered time (ms)	Buffered time (ms)
+1 MB	______	______
+10 MB	______	______
+50 MB	______	______
+
+Prediction and interpretation:
+- Unbuffered reading processes one byte per read call.
+- Buffered reading obtains data in blocks, reducing the number of underlying file-read operations.
+- As file size increases, both methods take more time.
+- Buffered reading is generally faster, especially for large files.
+- Actual timings depend on the laptop, storage device, operating system and file cache.
+Comparison with A2.1: The results should generally support the prediction that buffered reading reduces file-reading overhead. Note that this program still calls read() once per byte at the Java level; BufferedInputStream reduces the number of underlying file reads by refilling its internal buffer in blocks.
+B1.4 – Measure Growth (2 Marks)
+Aim: Measure how the search time increases when the number of bus-pass records grows from 1,000 to 100,000.
+Java benchmark code
+Save this as FindTest.java.
+
+import java.io.*;
+import java.nio.file.*;
+
+public class FindTest {
+
+    static String[] find(String file, String id)
+            throws Exception {
+
+        try (BufferedReader r =
+                Files.newBufferedReader(Path.of(file))) {
+
+            String line;
+
+            while ((line = r.readLine()) != null) {
+
+                String[] fields = line.split(",", -1);
+
+                if (fields.length != 5) {
+                    continue;
+                }
+
+                if (fields[0].equals(id)) {
+                    return fields;
+                }
+            }
+        }
+
+        return null;
+    }
+
+    static void createRecords(String file, int n)
+            throws Exception {
+
+        try (BufferedWriter w =
+                Files.newBufferedWriter(Path.of(file))) {
+
+            for (int i = 1; i <= n; i++) {
+
+                w.write("P" + i + ",REG" + i
+                        + ",Student" + i + ",12,4500");
+                w.newLine();
+            }
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        int[] sizes = {1000, 10000, 50000, 100000};
+
+        for (int n : sizes) {
+
+            String file = "passes.txt";
+
+            createRecords(file, n);
+
+            String searchId = "P" + n;
+
+            // Warm-up
+            find(file, searchId);
+
+            long start = System.nanoTime();
+
+            for (int i = 0; i < 5; i++) {
+                find(file, searchId);
+            }
+
+            long end = System.nanoTime();
+
+            double averageTime =
+                    (end - start) / 5_000_000.0;
+
+            System.out.println("Records: " + n);
+            System.out.println("Average search time: "
+                    + averageTime + " ms");
+            System.out.println();
+        }
+    }
+}
+
+
+
+Run commands:
+javac FindTest.java
+java FindTest
+
+
+The program searches for the last record, so it must scan almost the entire file for each search.
+Measurement table
+Enter the actual results from your execution:
+Number of records	Average search time (ms)
+1,000	______
+10,000	______
+50,000	______
+100,000	______
+
+Interpretation:
+- When the number of records increases, search time generally increases.
+- The find() method checks records one by one.
+- If the required pass is at the end, almost every record must be checked.
+- Therefore, the search time grows approximately linearly with the number of records.
+Time complexity: O(n), where n is the number of records.
+Alternative Concept and Complexity Analysis – HashMap
+Instead of reading the file for every search, we can read it once and store valid records in a HashMap.
+
+Example Java code:
+HashMap<String, String[]> map = new HashMap<>();
+
+// Read file once
+try (BufferedReader r = Files.newBufferedReader(file)) {
+
+    String line;
+
+    while ((line = r.readLine()) != null) {
+
+        String[] fields = line.split(",", -1);
+
+        if (fields.length == 5) {
+            map.put(fields[0], fields);
+        }
+    }
+}
+
+// Search pass
+String[] result = map.get("P1003");
+
+System.out.println(Arrays.toString(result));
+
+
+Complexity comparison
+Operation	File scanning	HashMap
+Initial loading	Not required	O(n)
+One search	O(n)	O(1) average
+q searches	O(q × n)	O(n + q) average
+Extra memory	O(1) for streaming	O(n)
+Best use	Small number of searches	Many repeated searches
+
+Explanation:
+- File scanning reads the file again for every search.
+- HashMap reads the file once and stores records using pass IDs as keys.
+- HashMap usually finds a pass in constant average time.
+- However, HashMap requires additional memory to store all records.
+- In the worst case, HashMap operations can take longer than O(1) due to hash collisions.
+Final Result
+1. Implemented a bus-pass file store using CSV format.
+2. Completed the find() method using BufferedReader.
+3. Tested normal, damaged and non-existing pass IDs.
+4. Compared unbuffered and buffered file-reading performance.
+5. Measured search time for increasing record counts.
+6. Compared sequential file searching with HashMap searching.
+Conclusion: Buffered reading improves file-reading efficiency by reducing underlying file-read operations. Sequential searching takes O(n) time, while HashMap provides O(1) average search time after O(n) initial loading, at the cost of additional memory.
+
+Important for your assignment report: Run both benchmark programs on your laptop and fill in the actual timing tables. Take screenshots of the terminal output for B1.3 and B1.4. Your report should include the measured values, not just the expected trend.
