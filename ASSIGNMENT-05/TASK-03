@@ -1,0 +1,333 @@
+TASK A3 – DISCOVER THE DATA-ACCESS DESIGN PATTERN (5 Marks)
+Bloom's Level: K4 – Analyse
+
+Problem: A student project contains three classes: StudentDB, CourseDB and MarksDB. All three classes perform almost identical database operations. This creates code duplication and makes the application difficult to maintain.
+A3.1 – Identify the Common Pattern (2 Marks)
+1. Repeated Steps
+The following operations are repeated in all three classes:
+1. Open a database connection.
+2. Prepare an SQL query.
+3. Execute the SQL statement.
+4. Read the ResultSet.
+5. Convert database rows into Java objects.
+6. Close the database connection.
+2. Parts That Differ
+Common operations	Different operations
+Opening database connection	Table name
+Executing SQL statements	Column names
+Reading ResultSet	Java object type
+Closing connection	Primary key
+Handling SQL exceptions	Insert and update values
+
+3. Identified Design Pattern
+Data Access Object (DAO) Pattern
+The DAO (Data Access Object) Pattern separates database operations from business logic and user-interface code.
+
+Advantages:
+- Reduces duplicate code.
+- Improves code reusability.
+- Makes database changes easier.
+- Separates database logic from application logic.
+- Makes testing and maintenance easier.
+A3.2 – Design a Generic Data-Access Interface (2 Marks)
+A generic DAO interface can be created using Java Generics.
+
+Here, T represents the object type and K represents the primary-key type.
+1. Generic DAO Interface
+import java.util.List;
+
+public interface Dao<T, K> {
+
+    void insert(T obj);
+
+    T findById(K id);
+
+    List<T> findAll();
+
+    void update(T obj);
+
+    void delete(K id);
+}
+
+
+Method Explanation:
+Method	Purpose
+insert(T obj)	Inserts a new record
+findById(K id)	Finds a record using its ID
+findAll()	Retrieves all records
+update(T obj)	Updates an existing record
+delete(K id)	Deletes a record using its ID
+
+2. Student Class
+public class Student {
+
+    private int studentId;
+    private String name;
+    private String department;
+    private String email;
+
+    public Student(int studentId, String name,
+                   String department, String email) {
+        this.studentId = studentId;
+        this.name = name;
+        this.department = department;
+        this.email = email;
+    }
+
+    public int getStudentId() {
+        return studentId;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public String getDepartment() {
+        return department;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+}
+
+
+3. StudentDao Implementation
+import java.sql.*;
+import java.util.*;
+
+public class StudentDao implements Dao<Student, Integer> {
+
+    private Connection getConnection() throws SQLException {
+        return DriverManager.getConnection(
+            "jdbc:mysql://localhost:3306/college",
+            "root",
+            "YOUR_PASSWORD"
+        );
+    }
+
+    public void insert(Student s) {
+        String sql = "INSERT INTO student " +
+            "(student_id, name, department, email) " +
+            "VALUES (?, ?, ?, ?)";
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, s.getStudentId());
+            ps.setString(2, s.getName());
+            ps.setString(3, s.getDepartment());
+            ps.setString(4, s.getEmail());
+
+            ps.executeUpdate();
+            System.out.println("Student inserted");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public Student findById(Integer id) {
+        String sql = "SELECT * FROM student WHERE student_id = ?";
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, id);
+
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new Student(
+                        rs.getInt("student_id"),
+                        rs.getString("name"),
+                        rs.getString("department"),
+                        rs.getString("email")
+                    );
+                }
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return null;
+    }
+
+    public List<Student> findAll() {
+        List<Student> students = new ArrayList<>();
+
+        String sql = "SELECT * FROM student";
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                students.add(new Student(
+                    rs.getInt("student_id"),
+                    rs.getString("name"),
+                    rs.getString("department"),
+                    rs.getString("email")
+                ));
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+        return students;
+    }
+
+    public void update(Student s) {
+        String sql = "UPDATE student SET name=?, " +
+            "department=?, email=? WHERE student_id=?";
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setString(1, s.getName());
+            ps.setString(2, s.getDepartment());
+            ps.setString(3, s.getEmail());
+            ps.setInt(4, s.getStudentId());
+
+            ps.executeUpdate();
+            System.out.println("Student updated");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void delete(Integer id) {
+        String sql = "DELETE FROM student WHERE student_id=?";
+
+        try (Connection con = getConnection();
+             PreparedStatement ps = con.prepareStatement(sql)) {
+
+            ps.setInt(1, id);
+            ps.executeUpdate();
+            System.out.println("Student deleted");
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+}
+
+
+Note: This is an educational implementation. In a larger application, database errors should be propagated to the service layer instead of only printing stack traces. A shared connection factory can also be used.
+4. Class Diagram
+              Dao<T, K>
+                  |
+       +----------+----------+
+       |          |          |
+       v          v          v
+   StudentDao  CourseDao   MarksDao
+       |          |          |
+       v          v          v
+    Student     Course      Marks
+       |          |          |
+       v          v          v
+   Student DB  Course DB   Marks DB
+
+
+The generic interface defines common database operations. Each DAO implements those operations for its own entity and table.
+A3.3 – Map Objects to Tables (1 Mark)
+Object–relational mapping means connecting Java class fields with database table columns.
+1. Student Table
+CREATE TABLE student (
+    student_id INT PRIMARY KEY,
+    name VARCHAR(100),
+    department VARCHAR(50),
+    email VARCHAR(100)
+);
+
+
+2. Object–Table Mapping
+Java Student field	MySQL column	Data type	Description
+studentId	student_id	INT	Primary key
+name	name	VARCHAR(100)	Student name
+department	department	VARCHAR(50)	Department
+email	email	VARCHAR(100)	Email address
+
+Example:
+
+Java object:
+Student s = new Student(
+    101,
+    "Ravi",
+    "CSE",
+    "ravi@gmail.com"
+);
+
+
+Corresponding database record:
+student_id	name	department	email
+101	Ravi	CSE	ravi@gmail.com
+
+The studentId field maps to student_id, which is the primary key used to uniquely identify each student.
+Alternative Concept and Complexity Analysis
+Question: What happens if SQL queries are written directly inside service or GUI classes instead of using a generic DAO interface?
+1. Direct SQL Approach
+In this approach:
+- GUI classes contain SQL statements.
+- Service classes connect directly to MySQL.
+- SQL queries and business logic are mixed.
+- Database changes may require editing multiple classes.
+Example:
+public class StudentService {
+
+    public void addStudent() {
+        // SQL query directly inside service
+    }
+}
+
+
+2. Generic DAO Approach
+In this approach:
+- GUI handles user interactions.
+- Service handles business rules.
+- DAO handles SQL queries and database operations.
+- Database changes are managed mainly in the DAO layer.
+3. Comparison of Maintenance Effort
+Assume the student table has three different application classes using its email column.
+Design	Places to change when a column is renamed
+SQL directly inside GUI and service classes	Every class containing that SQL or mapping
+Generic DAO design	Usually StudentDao and any database mapping/configuration that uses the column
+
+For example, if email is renamed to student_email:
+
+Direct SQL design:
+- Student GUI query must be changed.
+- Student service query must be changed.
+- Other classes using the same column must also be changed.
+DAO design:
+- Update the SQL statements and ResultSet mapping inside StudentDao.
+- GUI and service classes can continue using the same DAO methods, provided the Java interface and object model do not change.
+4. Time and Space Complexity
+The DAO pattern does not automatically make database queries faster. Both approaches can execute the same SQL statements.
+Factor	Direct SQL	Generic DAO
+Insert operation	O(1) database row operation, excluding indexes and constraints	Same
+Find by primary key	O(log n) with a suitable B-tree index	Same
+Find all	O(n)	Same
+Update	Depends on query and indexes	Same
+Delete	Depends on query and indexes	Same
+Memory	Depends on result size	Depends on result size
+Maintenance	More difficult	Easier
+
+Note: These are simplified database-operation costs. Actual query complexity depends on indexes, database execution plans and returned data.
+5. Final Evaluation
+The generic DAO pattern is better for large applications because it separates database operations from GUI and service logic. It reduces code duplication and makes database changes easier.
+
+Although DAO does not directly improve the time complexity or memory complexity of an individual SQL operation, it improves code organization, reusability, testing and maintainability.
+Conclusion
+The DAO design pattern provides a reusable way to access database records. By creating a generic Dao<T, K> interface, common operations such as insert, find, update and delete can be shared across Student, Course and Marks entities. StudentDao implements the interface and maps Java object fields to MySQL columns. Compared with writing SQL directly in GUI or service classes, the DAO approach reduces duplication and makes database maintenance easier.
+Evidence Expected
+- [ ] Common and different database operations identified.
+- [ ] Generic Dao<T, K> interface.
+- [ ] Student class implementation.
+- [ ] StudentDao implementation.
+- [ ] Class diagram.
+- [ ] Student object-to-table mapping.
+- [ ] Direct SQL versus DAO comparison.
+- [ ] Time and space complexity analysis.
