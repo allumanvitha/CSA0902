@@ -1,0 +1,496 @@
+Q7 – Design a Concurrent, Fault-Tolerant Processor from First Principles
+Problem: Semester Result Processing
+Total Marks: 10
+Objective: Process 10,000 student score files quickly, handle corrupt or missing files without stopping the entire process, and generate a correct final summary.
+Stage 1 – Interpret the Problem (Joint) – 2 Marks
+1. Tasks that can run in parallel
+Each student's result can be processed independently. Therefore, these tasks can run at the same time:
+1. Read the student's score file.
+2. Check whether the file exists.
+3. Validate the student ID and marks.
+4. Calculate total marks and percentage.
+5. Generate the student's result.
+6. Record success or failure.
+Shared data:
+- Input folder containing score files.
+- Concurrent collection storing processing results.
+- Final success and failure counters.
+- Thread pool used to execute tasks.
+Each task processes a separate file, so the score data does not need to be shared between worker threads.
+2. Possible failures and their handling
+Failure	Handling
+File is missing	Record the file as failed
+File is corrupt	Record a validation failure
+Invalid student ID	Reject the file
+Marks are not numeric	Record a validation failure
+Marks are below 0 or above 100	Reject the file
+File cannot be read	Record an I/O failure
+Unexpected task exception	Capture it and continue processing other tasks
+Thread interruption	Stop waiting, restore interrupt status and shut down the executor
+
+A single file failure must not terminate the complete processing operation.
+3. Measurable requirements
+- The system must attempt to process all 10,000 expected files.
+- Every file must be recorded as either successful or failed.
+- One failed file must not stop other files from processing.
+- The final summary must satisfy:
+\[
+\text{Total Files}=\text{Success Count}+\text{Failure Count}
+\]
+
+- The program must measure execution time for thread pools of 1, 2, 4 and 8 threads.
+- The results must be checked using a small manually verified test set.
+
+Stage 2 – Design (Student A) – 3 Marks
+1. Proposed design
+The system uses Java concurrency features:
+- ExecutorService: Creates and manages a fixed-size thread pool.
+- Callable: Processes one score file and returns its result.
+- Future: Retrieves the result returned by each task.
+- ConcurrentLinkedQueue: Stores success and failure records safely when multiple threads access it.
+- Result class: Stores the status, student ID, total marks or error message.
+2. Why ConcurrentLinkedQueue?
+ConcurrentLinkedQueue is a thread-safe collection. Multiple worker threads can add their processing results without manually synchronizing every insertion.
+
+It is suitable because:
+- Multiple threads can insert results safely.
+- It supports concurrent access.
+- It avoids the need for an ordinary ArrayList shared between threads.
+- It stores both successful and failed processing records.
+3. Class diagram
+#chatgpt-mermaid-_r_1g1_{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;fill:rgb(13, 13, 13);}@keyframes edge-animation-frame{from{stroke-dashoffset:0;}}@keyframes dash{to{stroke-dashoffset:0;}}#chatgpt-mermaid-_r_1g1_ .edge-animation-slow{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 50s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-_r_1g1_ .edge-animation-fast{stroke-dasharray:9,5!important;stroke-dashoffset:900;animation:dash 20s linear infinite;stroke-linecap:round;}#chatgpt-mermaid-_r_1g1_ .error-icon{fill:rgb(243, 243, 243);}#chatgpt-mermaid-_r_1g1_ .error-text{fill:rgb(13, 13, 13);stroke:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .edge-thickness-normal{stroke-width:1px;}#chatgpt-mermaid-_r_1g1_ .edge-thickness-thick{stroke-width:3.5px;}#chatgpt-mermaid-_r_1g1_ .edge-pattern-solid{stroke-dasharray:0;}#chatgpt-mermaid-_r_1g1_ .edge-thickness-invisible{stroke-width:0;fill:none;}#chatgpt-mermaid-_r_1g1_ .edge-pattern-dashed{stroke-dasharray:3;}#chatgpt-mermaid-_r_1g1_ .edge-pattern-dotted{stroke-dasharray:2;}#chatgpt-mermaid-_r_1g1_ .marker{fill:rgb(143, 143, 143);stroke:rgb(143, 143, 143);}#chatgpt-mermaid-_r_1g1_ .marker.cross{stroke:rgb(143, 143, 143);}#chatgpt-mermaid-_r_1g1_ svg{font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:16px;}#chatgpt-mermaid-_r_1g1_ p{margin:0;}#chatgpt-mermaid-_r_1g1_ g.classGroup text{fill:rgb(83, 154, 248);stroke:none;font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";font-size:10px;}#chatgpt-mermaid-_r_1g1_ g.classGroup text .title{font-weight:bolder;}#chatgpt-mermaid-_r_1g1_ .cluster-label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .cluster-label span{color:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .cluster-label span p{background-color:transparent;}#chatgpt-mermaid-_r_1g1_ .cluster rect{fill:rgb(243, 243, 243);stroke:rgba(0, 0, 0, 0.1);stroke-width:1px;}#chatgpt-mermaid-_r_1g1_ .cluster text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .cluster span{color:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .nodeLabel,#chatgpt-mermaid-_r_1g1_ .edgeLabel{color:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .noteLabel .nodeLabel,#chatgpt-mermaid-_r_1g1_ .noteLabel .edgeLabel{color:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .edgeLabel .label rect{fill:rgb(222, 234, 251);}#chatgpt-mermaid-_r_1g1_ .label text{fill:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .labelBkg{background:rgb(222, 234, 251);}#chatgpt-mermaid-_r_1g1_ .edgeLabel .label span{background:rgb(222, 234, 251);}#chatgpt-mermaid-_r_1g1_ .classTitle{font-weight:bolder;}#chatgpt-mermaid-_r_1g1_ .node rect,#chatgpt-mermaid-_r_1g1_ .node circle,#chatgpt-mermaid-_r_1g1_ .node ellipse,#chatgpt-mermaid-_r_1g1_ .node polygon,#chatgpt-mermaid-_r_1g1_ .node path{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);stroke-width:1;}#chatgpt-mermaid-_r_1g1_ .divider{stroke:rgb(83, 154, 248);stroke-width:1;}#chatgpt-mermaid-_r_1g1_ g.clickable{cursor:pointer;}#chatgpt-mermaid-_r_1g1_ g.classGroup rect{fill:rgb(222, 234, 251);stroke:rgb(83, 154, 248);}#chatgpt-mermaid-_r_1g1_ g.classGroup line{stroke:rgb(83, 154, 248);stroke-width:1;}#chatgpt-mermaid-_r_1g1_ .classLabel .box{stroke:none;stroke-width:0;fill:rgb(222, 234, 251);opacity:0.5;}#chatgpt-mermaid-_r_1g1_ .classLabel .label{fill:rgb(83, 154, 248);font-size:10px;}#chatgpt-mermaid-_r_1g1_ .relation{stroke:rgb(143, 143, 143);stroke-width:1;fill:none;}#chatgpt-mermaid-_r_1g1_ .dashed-line{stroke-dasharray:3;}#chatgpt-mermaid-_r_1g1_ .dotted-line{stroke-dasharray:1 2;}#chatgpt-mermaid-_r_1g1_ [id$="-compositionStart"],#chatgpt-mermaid-_r_1g1_ .composition{fill:rgb(143, 143, 143)!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-compositionEnd"],#chatgpt-mermaid-_r_1g1_ .composition{fill:rgb(143, 143, 143)!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-dependencyStart"],#chatgpt-mermaid-_r_1g1_ .dependency{fill:rgb(143, 143, 143)!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-dependencyEnd"],#chatgpt-mermaid-_r_1g1_ .dependency{fill:rgb(143, 143, 143)!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-extensionStart"],#chatgpt-mermaid-_r_1g1_ .extension{fill:transparent!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-extensionEnd"],#chatgpt-mermaid-_r_1g1_ .extension{fill:transparent!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-aggregationStart"],#chatgpt-mermaid-_r_1g1_ .aggregation{fill:transparent!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-aggregationEnd"],#chatgpt-mermaid-_r_1g1_ .aggregation{fill:transparent!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-lollipopStart"],#chatgpt-mermaid-_r_1g1_ .lollipop{fill:rgb(222, 234, 251)!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ [id$="-lollipopEnd"],#chatgpt-mermaid-_r_1g1_ .lollipop{fill:rgb(222, 234, 251)!important;stroke:rgb(143, 143, 143)!important;stroke-width:1;}#chatgpt-mermaid-_r_1g1_ .edgeTerminals{font-size:11px;line-height:initial;}#chatgpt-mermaid-_r_1g1_ .classTitleText{text-anchor:middle;font-size:18px;fill:rgb(13, 13, 13);}#chatgpt-mermaid-_r_1g1_ .edgeLabel[data-look="neo"]{background-color:rgb(252, 252, 252);text-align:center;}#chatgpt-mermaid-_r_1g1_ .edgeLabel[data-look="neo"] p{background-color:rgb(252, 252, 252);}#chatgpt-mermaid-_r_1g1_ .edgeLabel[data-look="neo"] rect{opacity:0.5;background-color:rgb(252, 252, 252);fill:rgb(252, 252, 252);}#chatgpt-mermaid-_r_1g1_ .label-icon{display:inline-block;height:1em;overflow:visible;vertical-align:-0.125em;}#chatgpt-mermaid-_r_1g1_ .node .label-icon path{fill:currentColor;stroke:revert;stroke-width:revert;}#chatgpt-mermaid-_r_1g1_ .node .neo-node{stroke:rgb(83, 154, 248);}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node rect,#chatgpt-mermaid-_r_1g1_ [data-look="neo"].cluster rect,#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node polygon{stroke:url(#chatgpt-mermaid-_r_1g1_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].swimlane.cluster rect{filter:none;}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node path{stroke:url(#chatgpt-mermaid-_r_1g1_-gradient);stroke-width:1px;}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node .outer-path{filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node .neo-line path{stroke:rgb(83, 154, 248);filter:none;}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node circle{stroke:url(#chatgpt-mermaid-_r_1g1_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].node circle .state-start{fill:#000000;}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].icon-shape .icon{fill:url(#chatgpt-mermaid-_r_1g1_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1g1_ [data-look="neo"].icon-shape .icon-neo path{stroke:url(#chatgpt-mermaid-_r_1g1_-gradient);filter:drop-shadow( 1px 2px 2px rgba(185,185,185,1));}#chatgpt-mermaid-_r_1g1_ :root{--mermaid-font-family:-apple-system-body,ui-sans-serif,-apple-system,system-ui,"Segoe UI",Helvetica,"Apple Color Emoji",Arial,sans-serif,"Segoe UI Emoji","Segoe UI Symbol";}Main+main()+processFiles()+printSummary()ExecutorService+submit(Callable)+shutdown()ScoreProcessor+call() : Result+readFile()+validateMarks()+calculateResult()Result+studentId+success+totalMarks+messageConcurrentLinkedQueue+add(Result)+size()managessubmits tasksreturnsrecords resultreads summary
+
+
+
+
+
+4. Pseudocode
+START
+
+Read the input folder
+Create a ConcurrentLinkedQueue for results
+Create a fixed thread pool
+
+FOR each expected score file
+    Create a Callable task
+
+    Inside the task:
+        TRY
+            Read the file
+            Validate student ID and marks
+            Calculate total marks
+            Create a successful result
+        CATCH any file or validation exception
+            Create a failure result
+
+        Add the result to the concurrent collection
+        RETURN the result
+
+    Submit the task to ExecutorService
+    Store its Future
+END FOR
+
+FOR each Future
+    Wait for the task to complete
+    Handle any unexpected task exception
+END FOR
+
+Count successful results
+Count failed results
+Print the final summary
+Measure total processing time
+
+Shutdown ExecutorService
+
+STOP
+
+
+
+
+Stage 3 – Implement and Measure (Student B) – 3 Marks
+1. Java implementation
+Input file format
+
+Each score file contains one line with a student ID and three subject marks, separated by commas.
+
+Example: score00001.txt
+STU001,80,75,90
+
+
+The program validates the file and calculates the total marks. It treats missing files, invalid data and reading errors as individual failures.
+
+import java.io.*;
+import java.util.*;
+import java.util.concurrent.*;
+
+class Result {
+    String fileName;
+    String studentId;
+    boolean success;
+    int totalMarks;
+    String message;
+
+    Result(String fileName, String studentId,
+           boolean success, int totalMarks, String message) {
+        this.fileName = fileName;
+        this.studentId = studentId;
+        this.success = success;
+        this.totalMarks = totalMarks;
+        this.message = message;
+    }
+}
+
+class ScoreProcessor implements Callable<Result> {
+    private File file;
+
+    ScoreProcessor(File file) {
+        this.file = file;
+    }
+
+    public Result call() {
+        try (BufferedReader br =
+                 new BufferedReader(new FileReader(file))) {
+
+            String line = br.readLine();
+
+            if (line == null || line.trim().isEmpty()) {
+                throw new IllegalArgumentException("Empty file");
+            }
+
+            String[] data = line.split(",");
+
+            if (data.length != 4) {
+                throw new IllegalArgumentException(
+                    "Invalid file format");
+            }
+
+            String studentId = data[0].trim();
+
+            if (studentId.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Missing student ID");
+            }
+
+            int total = 0;
+
+            for (int i = 1; i < 4; i++) {
+                int mark = Integer.parseInt(data[i].trim());
+
+                if (mark < 0 || mark > 100) {
+                    throw new IllegalArgumentException(
+                        "Invalid mark: " + mark);
+                }
+
+                total += mark;
+            }
+
+            return new Result(file.getName(), studentId,
+                true, total, "Processed successfully");
+
+        } catch (Exception e) {
+            return new Result(file.getName(), "",
+                false, 0, e.getMessage());
+        }
+    }
+}
+
+public class ResultProcessingSystem {
+
+    public static void main(String[] args) {
+
+        String folder = args.length > 0 ? args[0] : "scores";
+        int poolSize = args.length > 1
+                ? Integer.parseInt(args[1]) : 4;
+
+        ConcurrentLinkedQueue<Result> results =
+                new ConcurrentLinkedQueue<>();
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(poolSize);
+
+        List<Future<Result>> futures = new ArrayList<>();
+
+        long start = System.nanoTime();
+
+        try {
+            // Attempt all 10,000 expected files
+            for (int i = 1; i <= 10000; i++) {
+
+                String fileName =
+                    String.format("score%05d.txt", i);
+
+                File file = new File(folder, fileName);
+
+                Future<Result> future =
+                    executor.submit(new ScoreProcessor(file));
+
+                futures.add(future);
+            }
+
+            // Wait for every submitted task
+            for (Future<Result> future : futures) {
+                try {
+                    Result result = future.get();
+                    results.add(result);
+
+                } catch (ExecutionException e) {
+                    results.add(new Result(
+                        "Unknown task", "", false, 0,
+                        "Unexpected task failure: " +
+                        e.getCause()
+                    ));
+                }
+            }
+
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            System.out.println("Processing was interrupted.");
+
+        } finally {
+            executor.shutdown();
+        }
+
+        long end = System.nanoTime();
+
+        int success = 0;
+        int failure = 0;
+
+        for (Result r : results) {
+            if (r.success) {
+                success++;
+            } else {
+                failure++;
+            }
+        }
+
+        System.out.println("\n--- SEMESTER RESULT SUMMARY ---");
+        System.out.println("Thread Pool Size: " + poolSize);
+        System.out.println("Total Processed: " + results.size());
+        System.out.println("Successful Files: " + success);
+        System.out.println("Failed Files: " + failure);
+        System.out.printf("Execution Time: %.3f ms%n",
+                (end - start) / 1_000_000.0);
+
+        if (results.size() == 10000) {
+            System.out.println("Summary Check: PASSED");
+        } else {
+            System.out.println("Summary Check: INCOMPLETE");
+        }
+    }
+}
+
+
+
+Important implementation note: This code attempts all 10,000 expected filenames, even when some files are missing. Each Callable catches file-reading and validation exceptions and returns a failure result. The main thread collects every returned result through its Future.
+2. Test data and failure injection
+Create a folder named scores in the same directory as the Java program.
+
+Create these sample files:
+File name	Content	Expected result
+score00001.txt	STU001,80,75,90	Success
+score00002.txt	STU002,60,70,85	Success
+score00003.txt	STU003,90,abc,80	Failure – non-numeric mark
+score00004.txt	STU004,110,70,80	Failure – invalid mark
+score00005.txt	Empty file	Failure – empty file
+score00006.txt	Not created	Failure – missing file
+
+For the remaining expected files, the program will also record missing-file failures.
+3. Compile and execute in VS Code terminal
+javac ResultProcessingSystem.java
+
+
+Run with different thread pool sizes:
+java ResultProcessingSystem scores 1
+java ResultProcessingSystem scores 2
+java ResultProcessingSystem scores 4
+java ResultProcessingSystem scores 8
+
+
+Record the execution time displayed by your computer for each run.
+4. Execution output – small hand-checked test
+For the six sample files above, the expected result is:
+--- SEMESTER RESULT SUMMARY ---
+Total Processed: 6
+Successful Files: 2
+Failed Files: 4
+Summary Check: PASSED
+
+
+For the 10,000-file run, if only 9,500 files are valid and the remaining 500 are missing or corrupt, the expected counts are:
+Total Processed: 10000
+Successful Files: 9500
+Failed Files: 500
+Summary Check: PASSED
+
+
+These are illustrative expected results, not measurements from an actual execution.
+5. Performance measurement table
+Run the program four times using the commands above. Record the actual execution time shown in your terminal.
+Thread pool size	Execution time (ms)	Success count	Failure count
+1	______	______	______
+2	______	______	______
+4	______	______	______
+8	______	______	______
+
+How to measure: Use the same input files for all four runs. Run each configuration more than once if possible, and compare the average execution time. Avoid changing the input data between tests.
+6. Failure verification
+Test case	Expected handling
+Missing file	Failure recorded; next file continues
+Corrupt file	Failure recorded; next file continues
+Invalid marks	Failure recorded
+Empty file	Failure recorded
+Valid file	Total marks calculated
+Unexpected task exception	Captured through ExecutionException
+
+If an error is not handled correctly during testing, record the filename, error message and correction in the report.
+
+
+Stage 4 – Defend the Design (Joint) – 2 Marks
+1. Recommended thread pool size
+A fixed thread pool controls the number of active worker threads.
+- 1 thread: Processes files one by one. It is reliable but may take more time.
+- 2 threads: Allows two files to be processed simultaneously.
+- 4 threads: Provides more parallelism and may improve performance.
+- 8 threads: Can improve performance further, but may also create additional overhead.
+For this file-processing application, I would initially recommend 4 threads, then compare the actual measurements and choose the fastest configuration that remains stable.
+
+More threads do not always improve performance because:
+- All threads compete for disk resources.
+- Creating and scheduling threads adds overhead.
+- Too many threads can increase memory usage.
+- The disk may become a bottleneck even when more threads are available.
+2. How does the design guarantee a complete and correct summary?
+1. The program creates a task for every expected file.
+2. Each task independently reads and validates its file.
+3. A file-specific exception is converted into a failure result.
+4. The Future.get() method waits for each submitted task to finish.
+5. Successful and failed results are collected.
+6. The program counts both categories after task completion.
+7. It checks whether the number of collected results equals 10,000.
+The summary must satisfy:
+\[
+10000 = \text{Successful Files} + \text{Failed Files}
+\]
+
+Important: This guarantee applies when processing completes without interruption or an unrecoverable JVM failure. If processing is interrupted, the program must report an incomplete summary rather than claim that all files were processed.
+3. Remaining limitation
+The program processes each file independently, but it does not save the calculated results permanently in a database. If the application crashes, the processing may need to be repeated.
+
+A future improvement would be to save each successful result and failure record in a database or log file. This would support recovery and avoid losing completed work.
+
+Alternative Concept and Complexity Analysis
+The same 10,000 files could be processed using parallel streams or by creating one thread per file.
+1. ExecutorService
+- Uses a fixed number of worker threads.
+- Reuses threads instead of creating a new thread for every file.
+- Provides control over pool size.
+- Uses Callable and Future to retrieve task results.
+- Individual file exceptions can be caught and recorded.
+If \(N\) is the number of files and \(P\) is the number of worker threads, ideal processing time is approximately:
+\[
+T = O\left(\frac{N \times W}{P}\right)
+\]
+
+Here, \(W\) represents the average processing work for one file. Actual time also includes I/O, scheduling and synchronization overhead.
+
+Memory for worker thread stacks is approximately:
+\[
+M = O(P \times S)
+\]
+
+where \(S\) is the stack size of one thread. There is also memory for task objects, futures and results.
+2. Parallel Streams
+Example:
+files.parallelStream().forEach(file -> {
+    try {
+        processFile(file);
+    } catch (Exception e) {
+        System.out.println(
+            "Failed: " + file.getName());
+    }
+});
+
+
+- Uses parallel processing through Java's common ForkJoinPool by default.
+- Does not require manually creating one thread for each file.
+- The number of worker threads is generally based on available processors and pool configuration.
+- An exception that is not caught inside the file-processing operation can cause the stream operation to fail.
+- Catching exceptions inside the operation allows other files to continue processing.
+Its ideal processing time is approximately \(O(NW/P)\), but actual performance depends on the common pool, file I/O and available resources.
+
+Memory for worker thread stacks is approximately \(O(P \times S)\), in addition to task and result storage.
+3. Creating one thread per file
+Example:
+for (File file : files) {
+    Thread t = new Thread(() -> {
+        try {
+            processFile(file);
+        } catch (Exception e) {
+            System.out.println(
+                "Failed: " + file.getName());
+        }
+    });
+
+    t.start();
+}
+
+
+- Creates 10,000 threads for 10,000 files.
+- Every thread has its own stack memory.
+- Thread creation and scheduling create high overhead.
+- It can cause memory exhaustion or native-thread resource errors.
+- A failure must be caught inside each thread; otherwise, that thread terminates without producing a useful failure record.
+- Collecting results safely also requires thread-safe data structures and proper synchronization.
+The approximate thread-stack memory requirement is:
+\[
+M = O(10000 \times S)
+\]
+
+For example, if the configured stack size is 1 MB per thread:
+\[
+10000 \times 1\text{ MB} = 10000\text{ MB}
+\]
+
+That is approximately 10 GB of stack address-space reservation. Actual committed physical memory may be lower, but creating that many threads is still risky.
+4. Comparison table
+Feature	ExecutorService	Parallel Stream	One thread per file
+Thread creation	Reuses pool threads	Uses common pool	Creates 10,000 threads
+Thread control	High	Limited by default	Very high overhead
+Failure handling	Individual task handling	Catch inside operation	Catch inside each thread
+Memory usage	Controlled by pool size	Controlled by pool	Very high
+Result collection	Future and concurrent collection	Requires safe collection	Requires safe collection
+Suitability	Highly suitable	Suitable for simpler tasks	Not recommended
+
+5. Final complexity comparison
+Let:
+- \(N\) = number of files (10,000)
+- \(P\) = number of worker threads
+- \(S\) = stack size per thread
+- \(W\) = average work per file
+Approach	Ideal processing time	Thread stack memory
+ExecutorService	\(O(NW/P)\)	\(O(PS)\)
+Parallel Stream	\(O(NW/P)\)	\(O(PS)\)
+One thread per file	\(O(W)\) idealized	\(O(NS)\)
+
+The one-thread-per-file time is only an idealized lower bound assuming all tasks run simultaneously. In practice, operating-system scheduling, disk contention, thread creation and resource limits can make it much slower.
+Conclusion
+The proposed Result Processing System uses ExecutorService, Callable, Future and ConcurrentLinkedQueue to process 10,000 student score files concurrently. It handles missing and corrupt files independently, so one bad file does not stop the entire process. It also produces a summary of successful and failed files.
+
+ExecutorService is the recommended approach because it controls the number of threads, reuses worker threads, reduces memory overhead and provides reliable task-result collection.
+
+Student contribution:
+- Student A: Requirement analysis, concurrent design, exception handling, class diagram and pseudocode.
+- Student B: Java implementation, corrupt and missing file testing, execution-time measurement and result verification.
+- Joint: Performance evaluation, design defence and final conclusion.
+
+Report screenshot checklist
+
+Capture these screenshots after running your actual program:
+1. Java source code in VS Code.
+2. Sample valid and corrupt score files.
+3. Execution with 1 thread.
+4. Execution with 2 threads.
+5. Execution with 4 threads.
+6. Execution with 8 threads.
+7. Final summary showing success and failure counts.
+Do not fill in the execution-time table with estimated values. Use the actual times displayed by your computer.
