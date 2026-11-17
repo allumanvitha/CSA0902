@@ -1,0 +1,813 @@
+Q2 – When Is ArrayList an Appropriate Engineering Choice?
+Bloom's Taxonomy: K4 – Analyse
+Topic: Music Playlist Editor
+Marks: 4
+1. Problem analysis
+A music-streaming application allows users to:
+Add songs at the end of a playlist.
+Insert songs at specific positions.
+Remove songs from the front or middle.
+Access the k-th song directly.
+Iterate through the complete playlist.
+The application currently uses ArrayList<Song>.
+We need to compare three data structures:
+ArrayList – Uses a dynamically resizable array.
+LinkedList – Uses a doubly linked list.
+ArrayDeque – Uses a resizable circular array, optimized for operations at both ends.
+2. Prediction before implementation
+Operation
+ArrayList
+LinkedList
+ArrayDeque
+Add at end
+Very fast (amortized)
+Fast
+Very fast (amortized)
+Insert at front
+Slow
+Fast
+Fast
+Insert in middle
+Slow
+Slow to locate position
+Not directly supported
+Remove at front
+Slow
+Fast
+Fast
+Get k-th song
+Very fast
+Slow
+Not directly supported
+Iterate all songs
+Fast
+Fast
+Fast
+Prediction: ArrayList should be the best choice for playlists where users frequently jump to particular songs and mostly add songs at the end. LinkedList should perform better for frequent front insertions and removals. ArrayDeque should be preferred for an Up Next queue that frequently changes at both ends.
+3. Experimental design
+We will use three playlist sizes:
+Experiment
+Playlist size
+Purpose
+Small
+1,000 songs
+Normal playlist
+Medium
+10,000 songs
+Large playlist
+Large
+100,000 songs
+Heavy playlist
+We will measure:
+Time to add songs at the end.
+Time to insert songs at the front.
+Time to insert songs in the middle.
+Time to remove songs from the front and middle.
+Time to access the k-th song.
+Time to iterate through the entire playlist.
+All measurements use System.nanoTime().
+4. Java implementation
+The following program compares ArrayList, LinkedList and ArrayDeque using the three playlist sizes.
+
+It measures average operation time and includes all the requested operations. ArrayDeque does not support insertion at an arbitrary index, so that operation is marked as unsupported.
+
+
+java
+
+import java.util.*;
+
+public class PlaylistBenchmark {
+
+    static volatile long result;
+
+    static final int[] SIZES = {1000, 10000, 100000};
+    static final int ROUNDS = 5;
+
+    static class Song {
+        int id;
+
+        Song(int id) {
+            this.id = id;
+        }
+    }
+
+    static ArrayList<Song> createArrayList(int n) {
+        ArrayList<Song> list = new ArrayList<>();
+
+        for (int i = 0; i < n; i++)
+            list.add(new Song(i));
+
+        return list;
+    }
+
+    static LinkedList<Song> createLinkedList(int n) {
+        LinkedList<Song> list = new LinkedList<>();
+
+        for (int i = 0; i < n; i++)
+            list.add(new Song(i));
+
+        return list;
+    }
+
+    static ArrayDeque<Song> createDeque(int n) {
+        ArrayDeque<Song> deque = new ArrayDeque<>();
+
+        for (int i = 0; i < n; i++)
+            deque.addLast(new Song(i));
+
+        return deque;
+    }
+
+    static void measure(String operation, Runnable task,
+                        int operations) {
+
+        // Warm-up
+        task.run();
+
+        long total = 0;
+
+        for (int r = 0; r < ROUNDS; r++) {
+            long start = System.nanoTime();
+
+            task.run();
+
+            long end = System.nanoTime();
+            total += end - start;
+        }
+
+        double average =
+                (double) total / (ROUNDS * operations);
+
+        System.out.printf(
+                "%-35s %.2f ns/op%n",
+                operation, average);
+    }
+
+    static void testArrayList(int n) {
+
+        int repetitions = 1000;
+
+        System.out.println("\n--- ArrayList ---");
+
+        // Add at end and remove from end
+        ArrayList<Song> endList = createArrayList(n);
+
+        measure("ArrayList - Add at end", () -> {
+            for (int i = 0; i < repetitions; i++)
+                endList.add(new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                endList.remove(endList.size() - 1);
+        }, repetitions * 2);
+
+        // Insert and remove at front
+        ArrayList<Song> frontList = createArrayList(n);
+
+        measure("ArrayList - Insert at front", () -> {
+            for (int i = 0; i < repetitions; i++)
+                frontList.add(0, new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                frontList.remove(0);
+        }, repetitions * 2);
+
+        // Insert and remove in middle
+        ArrayList<Song> middleList = createArrayList(n);
+        int middle = n / 2;
+
+        measure("ArrayList - Insert in middle", () -> {
+            for (int i = 0; i < repetitions; i++)
+                middleList.add(middle, new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                middleList.remove(middle);
+        }, repetitions * 2);
+
+        // Random access
+        ArrayList<Song> accessList = createArrayList(n);
+
+        measure("ArrayList - Get k-th", () -> {
+            long sum = 0;
+
+            for (int i = 0; i < repetitions; i++)
+                sum += accessList.get(i % n).id;
+
+            result = sum;
+        }, repetitions);
+
+        // Iteration
+        measure("ArrayList - Full iteration", () -> {
+            long sum = 0;
+
+            for (Song s : accessList)
+                sum += s.id;
+
+            result = sum;
+        }, n);
+    }
+
+    static void testLinkedList(int n) {
+
+        int repetitions = 1000;
+
+        System.out.println("\n--- LinkedList ---");
+
+        LinkedList<Song> endList = createLinkedList(n);
+
+        measure("LinkedList - Add at end", () -> {
+            for (int i = 0; i < repetitions; i++)
+                endList.addLast(new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                endList.removeLast();
+        }, repetitions * 2);
+
+        LinkedList<Song> frontList = createLinkedList(n);
+
+        measure("LinkedList - Insert at front", () -> {
+            for (int i = 0; i < repetitions; i++)
+                frontList.addFirst(new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                frontList.removeFirst();
+        }, repetitions * 2);
+
+        LinkedList<Song> middleList = createLinkedList(n);
+        int middle = n / 2;
+
+        measure("LinkedList - Insert in middle", () -> {
+            for (int i = 0; i < repetitions; i++) {
+                ListIterator<Song> it =
+                        middleList.listIterator(middle);
+
+                it.add(new Song(i));
+            }
+
+            for (int i = 0; i < repetitions; i++) {
+                ListIterator<Song> it =
+                        middleList.listIterator(middle);
+
+                it.next();
+                it.remove();
+            }
+        }, repetitions * 2);
+
+        LinkedList<Song> accessList = createLinkedList(n);
+
+        measure("LinkedList - Get k-th", () -> {
+            long sum = 0;
+
+            for (int i = 0; i < repetitions; i++)
+                sum += accessList.get(i % n).id;
+
+            result = sum;
+        }, repetitions);
+
+        measure("LinkedList - Full iteration", () -> {
+            long sum = 0;
+
+            for (Song s : accessList)
+                sum += s.id;
+
+            result = sum;
+        }, n);
+    }
+
+    static void testArrayDeque(int n) {
+
+        int repetitions = 1000;
+
+        System.out.println("\n--- ArrayDeque ---");
+
+        ArrayDeque<Song> deque = createDeque(n);
+
+        measure("ArrayDeque - Add at end", () -> {
+            for (int i = 0; i < repetitions; i++)
+                deque.addLast(new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                deque.removeLast();
+        }, repetitions * 2);
+
+        measure("ArrayDeque - Insert at front", () -> {
+            for (int i = 0; i < repetitions; i++)
+                deque.addFirst(new Song(i));
+
+            for (int i = 0; i < repetitions; i++)
+                deque.removeFirst();
+        }, repetitions * 2);
+
+        System.out.println(
+                "ArrayDeque - Insert in middle: NOT SUPPORTED");
+
+        System.out.println(
+                "ArrayDeque - Get k-th: NOT SUPPORTED");
+
+        measure("ArrayDeque - Full iteration", () -> {
+            long sum = 0;
+
+            for (Song s : deque)
+                sum += s.id;
+
+            result = sum;
+        }, n);
+    }
+
+    public static void main(String[] args) {
+
+        System.out.println("MUSIC PLAYLIST PERFORMANCE TEST");
+
+        for (int n : SIZES) {
+
+            System.out.println("\n================================");
+            System.out.println("PLAYLIST SIZE: " + n);
+            System.out.println("================================");
+
+            testArrayList(n);
+            testLinkedList(n);
+            testArrayDeque(n);
+        }
+    }
+}
+Execution commands
+
+bash
+javac PlaylistBenchmark.java
+java PlaylistBenchmark
+Note about the experiment: Each insertion/removal test performs paired operations to restore the original list size. Therefore, its reported nanoseconds per operation represent the average across both insertion and removal operations, not insertion alone. The access and iteration tests are measured separately.
+
+For more reliable publication-quality results, JMH (Java Microbenchmark Harness) should be used to control JVM warm-up, garbage collection and measurement iterations.
+
+5. Expected output and experimental observations
+The program generates timing results for each data structure and playlist size. Actual values depend on the hardware and JVM, so the following are expected trends, not fabricated measurements.
+
+Operation
+
+1,000 songs
+
+10,000 songs
+
+100,000 songs
+
+ArrayList add at end
+
+Very fast
+
+Very fast
+
+Very fast, occasional resizing
+
+LinkedList add at end
+
+Fast
+
+Fast
+
+Fast
+
+ArrayList front insertion
+
+Moderate
+
+Slower
+
+Much slower
+
+LinkedList front insertion
+
+Fast
+
+Fast
+
+Fast
+
+ArrayList middle insertion
+
+Moderate
+
+Slower
+
+Much slower
+
+LinkedList middle insertion
+
+Slower due to traversal
+
+Slower
+
+Much slower
+
+ArrayList k-th access
+
+Very fast
+
+Very fast
+
+Very fast
+
+LinkedList k-th access
+
+Slower
+
+Much slower
+
+Much slower
+
+ArrayList iteration
+
+Fast
+
+Fast
+
+Fast
+
+LinkedList iteration
+
+Fast
+
+Fast
+
+Fast
+
+Comparison of prediction and observation
+ArrayList: Expected to perform well for random access and iteration because elements are stored in contiguous array positions.
+
+LinkedList: Expected to perform well for front insertion and removal because it updates links rather than shifting elements.
+
+ArrayDeque: Expected to perform well for additions and removals at both ends.
+
+Increasing playlist size: Makes the cost of shifting elements in ArrayList and traversing LinkedList increasingly noticeable.
+
+The important distinction is that LinkedList insertion in the middle is 
+O
+(
+1
+)
+O(1) only after reaching the required node. Finding that node still takes 
+O
+(
+n
+)
+O(n).
+6. Time complexity comparison (Big-O)
+Operation
+
+ArrayList
+
+LinkedList
+
+ArrayDeque
+
+Add at end
+
+O
+(
+1
+)
+O(1) amortized
+
+O
+(
+1
+)
+O(1)
+
+O
+(
+1
+)
+O(1) amortized
+
+Insert at front
+
+O
+(
+n
+)
+O(n)
+
+O
+(
+1
+)
+O(1)
+
+O
+(
+1
+)
+O(1) amortized
+
+Insert in middle
+
+O
+(
+n
+)
+O(n)
+
+O
+(
+n
+)
+O(n)*
+
+Not supported
+
+Remove at front
+
+O
+(
+n
+)
+O(n)
+
+O
+(
+1
+)
+O(1)
+
+O
+(
+1
+)
+O(1)
+
+Remove in middle
+
+O
+(
+n
+)
+O(n)
+
+O
+(
+n
+)
+O(n)*
+
+Not supported
+
+Get k-th element
+
+O
+(
+1
+)
+O(1)
+
+O
+(
+n
+)
+O(n)
+
+Not supported by index
+
+Full iteration
+
+O
+(
+n
+)
+O(n)
+
+O
+(
+n
+)
+O(n)
+
+O
+(
+n
+)
+O(n)
+
+LinkedList insertion/removal is 
+O
+(
+1
+)
+O(1) after locating the required node, but locating a middle position takes 
+O
+(
+n
+)
+O(n).
+
+7. Space complexity comparison
+Data structure
+
+Space per element
+
+Explanation
+
+ArrayList
+
+O
+(
+1
+)
+O(1)
+
+One reference in the backing array
+
+LinkedList
+
+O
+(
+1
+)
+O(1)
+
+One node containing the song reference and two links
+
+ArrayDeque
+
+O
+(
+1
+)
+O(1)
+
+One reference in the circular backing array
+
+Although all three require 
+O
+(
+n
+)
+O(n) total space, their actual memory consumption differs.
+
+ArrayList: Generally uses less memory because it stores references without separate node objects. It may have unused array capacity.
+
+LinkedList: Requires extra memory for previous and next references and a separate node object for each song.
+
+ArrayDeque: Uses an array with some unused capacity to support efficient operations at both ends.
+
+8. Changed condition: Up Next queue
+The application introduces an Up Next queue where songs are frequently added at both ends and removed from the front.
+
+Music Player + Queue - Concept by Tanmay Saxena on Dribbble
+ 
+Under this changed condition, ArrayDeque becomes the better choice.
+
+Example:
+
+
+java
+import java.util.ArrayDeque;
+
+public class UpNextQueue {
+
+    public static void main(String[] args) {
+
+        ArrayDeque<String> queue = new ArrayDeque<>();
+
+        // Add songs at both ends
+        queue.addFirst("Song A");
+        queue.addLast("Song B");
+        queue.addLast("Song C");
+
+        // Remove the next song
+        String nextSong = queue.removeFirst();
+
+        System.out.println("Now Playing: " + nextSong);
+        System.out.println("Up Next: " + queue);
+    }
+}
+Why ArrayDeque?
+
+Adding at the front and back is 
+O
+(
+1
+)
+O(1) amortized.
+
+Removing from either end is 
+O
+(
+1
+)
+O(1).
+
+It avoids the element-shifting overhead of ArrayList.
+
+It avoids the additional node memory overhead of LinkedList.
+
+Therefore, ArrayDeque is more appropriate for the Up Next queue.
+
+9. Alternative concept: Plain array with manual shifting
+If the playlist were stored in a normal fixed-size array, insertion and removal would require manually shifting elements.
+
+Example:
+
+
+java
+class SongPlaylist {
+
+    String[] songs;
+    int size;
+
+    SongPlaylist(int capacity) {
+        songs = new String[capacity];
+        size = 0;
+    }
+
+    // Add at the end
+    void add(String song) {
+        if (size < songs.length) {
+            songs[size++] = song;
+        }
+    }
+
+    // Insert at a given position
+    void insert(int index, String song) {
+
+        if (index < 0 || index > size ||
+                size == songs.length) {
+            return;
+        }
+
+        for (int i = size; i > index; i--) {
+            songs[i] = songs[i - 1];
+        }
+
+        songs[index] = song;
+        size++;
+    }
+
+    // Remove from a given position
+    void remove(int index) {
+
+        if (index < 0 || index >= size) {
+            return;
+        }
+
+        for (int i = index; i < size - 1; i++) {
+            songs[i] = songs[i + 1];
+        }
+        songs[--size] = null;
+    }
+    // Access k-th song
+    String get(int k) {
+        if (k < 0 || k >= size)
+            return null;
+        return songs[k];
+    }
+}
+Complexity of a plain array
+Operation
+Time complexity
+Add at end
+O(1)
+O(1) if capacity exists
+Insert at front
+O(n)
+O(n)
+Insert in middle
+O(n)
+O(n)
+Remove at front
+O(n)
+O(n)
+Get k-th element
+O(1)
+O(1)
+Full iteration
+O(n)
+O(n)
+Space
+O(n)
+O(n)
+A plain array has similar access and shifting performance to ArrayList, but it has fixed capacity. ArrayList is more flexible because it automatically resizes when required.
+10. Final engineering recommendation
+Application requireme
+Recommended data structure
+Normal music playlist
+ArrayList
+Frequent random song access
+ArrayList
+Frequent insertion/removal at both ends
+ArrayDeque
+Frequent modifications when node references are already available
+LinkedList
+Fixed-size playlist
+Plain array
+When is ArrayList appropriate?
+ArrayList is a reasonable engineering choice when:
+Users mostly add songs at the end.
+Users frequently jump to a particular song.
+Iteration is performed frequently.
+Insertions and removals at the front or middle are relatively uncommon.
+When should we stop recommending ArrayList?
+When front and middle insertions and removals become frequent enough that repeated element shifting dominates the application's performance, another data structure should be considered.
+Final conclusion: ArrayList is the best general-purpose choice for a conventional music playlist because it offers fast random access, efficient iteration and convenient dynamic resizing. However, ArrayDeque is the better choice for the Up Next queue because it supports efficient operations at both ends.
+The engineering decision should depend on the actual usage pattern rather than assuming that one data structure is always the fastest.
+Important experimental note for submission: Include the actual timing output from running the Java program on your computer. Do not present expected trends as measured results. The benchmark demonstrates the comparison, while your machine's output provides the experimental evidence.
+
+
