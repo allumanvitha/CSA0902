@@ -1,0 +1,318 @@
+TASK 4 – EVENT-HANDLING FORENSICS
+Drawing Pad – 7 Marks
+Task 4.1 – Locate the Defect (2 Marks)
+The given program has two main defects.
+
+1. Incorrect method name
+
+The program uses:
+public void mouseclicked(MouseEvent e)
+
+
+The correct method name is:
+public void mouseClicked(MouseEvent e)
+
+
+Java is case-sensitive. The MouseAdapter class expects mouseClicked() with a capital C. Therefore, the incorrectly named method does not override the original method, and the click event is never handled.
+
+2. Label is not updated
+
+The program increases count, but it does not update the label.
+
+It should use:
+status.setText("Clicks: " + count);
+
+
+Additional problem: Drawing directly with getGraphics() is not permanent. The drawing may disappear when the window is minimised, restored or repainted.
+Task 4.2 – Construct a Failing Interaction (2 Marks)
+After correcting the first defect, perform these steps:
+1. Run the Draw Pad program.
+2. Click inside the drawing area three times.
+3. Three dots should appear.
+4. Minimise the window.
+5. Restore the window.
+Observed problem:
+- The previously drawn dots may disappear.
+- The click count may still show 3.
+Reason:
+
+The getGraphics() method draws directly on the screen. These drawings are temporary and are not stored by the window.
+
+When the window is minimised and restored, Java calls paint() to redraw the window. Since the dots were not stored, they cannot be drawn again.
+
+Solution: Store each click position in an ArrayList<Point> and redraw all points inside the paint() method.
+Task 4.3 – Repair the Program (2 Marks)
+Corrected Java program
+Save the program as DrawPad.java.
+
+import java.awt.BorderLayout;
+import java.awt.Frame;
+import java.awt.Graphics;
+import java.awt.Label;
+import java.awt.Point;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import java.util.ArrayList;
+import java.util.List;
+
+public class DrawPad extends Frame {
+
+    private final List<Point> points = new ArrayList<>();
+    private final Label status = new Label("Clicks: 0");
+
+    public DrawPad() {
+
+        super("Draw Pad");
+
+        add(status, BorderLayout.SOUTH);
+
+        addMouseListener(new MouseAdapter() {
+
+            // TODO 1: Correct mouse event handling
+            @Override
+            public void mouseClicked(MouseEvent e) {
+
+                points.add(e.getPoint());
+
+                status.setText("Clicks: " + points.size());
+
+                repaint();
+            }
+        });
+
+        addWindowListener(new WindowAdapter() {
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+
+        setSize(400, 300);
+    }
+
+    // TODO 2: Redraw all stored points
+    @Override
+    public void paint(Graphics g) {
+
+        super.paint(g);
+
+        for (Point p : points) {
+            g.fillOval(p.x - 3, p.y - 3, 6, 6);
+        }
+    }
+
+    public static void main(String[] args) {
+        new DrawPad().setVisible(true);
+    }
+}
+
+
+
+Explanation of TODO 1
+@Override
+public void mouseClicked(MouseEvent e) {
+
+    points.add(e.getPoint());
+
+    status.setText("Clicks: " + points.size());
+
+    repaint();
+}
+
+
+- mouseClicked() handles the mouse click event.
+- points.add() stores the clicked position.
+- status.setText() updates the click count.
+- repaint() requests the window to be redrawn.
+Explanation of TODO 2
+@Override
+public void paint(Graphics g) {
+
+    super.paint(g);
+
+    for (Point p : points) {
+        g.fillOval(p.x - 3, p.y - 3, 6, 6);
+    }
+}
+
+
+- paint() redraws the drawing area.
+- super.paint(g) paints the normal window components.
+- The for loop visits every stored point.
+- fillOval() draws a 6 × 6 circle around each point.
+Expected output
+
+
+
+
+
+
+
+
+
+
+Before minimising
+
+Dots are displayed and count is 3.
+
+
+
+
+
+
+
+
+
+
+
+After restoring
+
+Dots remain visible and count is still 3.
+
+
+Illustrative appearance only. Capture screenshots from your own running program for assignment evidence.
+How to execute
+Open the VS Code terminal and run:
+javac DrawPad.java
+java DrawPad
+
+
+Testing steps:
+1. Open the drawing window.
+2. Click five different positions.
+3. Check that the label displays Clicks: 5.
+4. Minimise the window.
+5. Restore the window.
+6. Verify that all five dots are still visible.
+7. Capture screenshots before and after minimising.
+Task 4.4 – Prevent Recurrence (1 Mark)
+The @Override annotation checks whether a method correctly overrides a method from its parent class.
+
+For example:
+@Override
+public void mouseclicked(MouseEvent e) {
+    // Code
+}
+
+
+If the method name is misspelled, the compiler displays an error similar to:
+error: method does not override or implement
+a method from a supertype
+
+
+Without @Override, the incorrect method may compile, but the mouse event will not call it.
+
+Therefore, using @Override helps identify spelling mistakes during compilation.
+Complete the Code – TODO Answers
+TODO 1:
+@Override
+public void mouseClicked(MouseEvent e) {
+    points.add(e.getPoint());
+    status.setText("Clicks: " + points.size());
+    repaint();
+}
+
+
+TODO 2:
+@Override
+public void paint(Graphics g) {
+    super.paint(g);
+
+    for (Point p : points) {
+        g.fillOval(p.x - 3, p.y - 3, 6, 6);
+    }
+}
+
+
+Compiler error experiment
+To perform the required experiment, temporarily change the method to:
+@Override
+public void mouseclicked(MouseEvent e) {
+    points.add(e.getPoint());
+}
+
+
+Compile it:
+javac DrawPad.java
+
+
+Expected compiler message:
+error: method does not override or implement
+a method from a supertype
+
+
+Now remove @Override but keep the incorrect spelling. The program may compile, but the method will not be called when the user clicks.
+
+Alternative Concept and Complexity Analysis
+Instead of storing points in an ArrayList, we can use an off-screen BufferedImage.
+1. BufferedImage approach
+- Create a BufferedImage with the same width and height as the drawing area.
+- When the user clicks, draw a dot directly onto the image.
+- In paint(), copy the image onto the screen using drawImage().
+- The image preserves all previous drawings.
+Example Java code:
+BufferedImage image =
+    new BufferedImage(400, 300,
+                      BufferedImage.TYPE_INT_ARGB);
+
+public void mouseClicked(MouseEvent e) {
+
+    Graphics g = image.getGraphics();
+
+    g.fillOval(e.getX() - 3,
+               e.getY() - 3, 6, 6);
+
+    g.dispose();
+
+    count++;
+    status.setText("Clicks: " + count);
+
+    repaint();
+}
+
+public void paint(Graphics g) {
+    super.paint(g);
+    g.drawImage(image, 0, 0, this);
+}
+
+
+Required import:
+import java.awt.image.BufferedImage;
+
+
+This is an alternative implementation fragment. It must be integrated into the DrawPad constructor and class, and the image must be created before drawing.
+2. Complexity comparison
+Let:
+- n = Number of mouse clicks.
+- W = Image width in pixels.
+- H = Image height in pixels.
+Feature	ArrayList of Points	BufferedImage
+Store one click	O(1) amortised	O(1) for fixed-size drawing
+Repaint time	O(n)	O(W × H) worst-case pixel copy
+Space	O(n)	O(W × H) pixels
+Redrawing	Draw every stored point	Copy one image
+Best use	Small drawings	Large or complex drawings
+
+3. Explanation
+ArrayList approach:
+- Stores each click position as a Point.
+- During every repaint, the program visits all n points.
+- Repaint time is O(n).
+- Memory usage is O(n).
+BufferedImage approach:
+- Stores the drawing as pixels.
+- The drawing is updated when a click occurs.
+- During repaint, the image is copied to the screen.
+- A straightforward full-image copy takes O(W × H) pixel work.
+- Memory usage is O(W × H), approximately four bytes per pixel for an ARGB image.
+For example, a 400 × 300 ARGB image requires approximately:
+\[
+400 \times 300 \times 4 = 480000 \text{ bytes}
+\]
+
+Approximately 469 KB, excluding object and image-management overhead.
+Final Result
+The event-handling defect was identified and corrected by using the proper mouseClicked() method. The repaired program stores click positions, updates the label and redraws all dots using paint(). The @Override annotation prevents incorrect method names. The BufferedImage alternative provides another way to preserve drawings during repainting.
