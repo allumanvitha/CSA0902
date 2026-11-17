@@ -1,0 +1,633 @@
+TASK 5 – SAME SCREEN, DIFFERENT EVENT-HANDLING STYLES
+Currency Converter – 7 Marks
+Task 5.1 – Four Implementations (3 Marks)
+The currency converter has:
+- Amount input field.
+- Target currency selection (USD or EUR).
+- Convert button.
+- Result label.
+- Window closing operation using WindowAdapter.
+The same conversion logic can be implemented in four different event-handling styles.
+Common conversion formula
+For the example, assume:
+- 1 INR = 0.012 USD
+- 1 INR = 0.011 EUR
+\[
+\text{Converted Amount} = \text{INR Amount} \times \text{Currency Rate}
+\]
+
+(a) Frame implements ActionListener
+In this method, the JFrame itself handles the button event.
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+public class ConverterA extends JFrame
+        implements ActionListener {
+
+    JTextField amount = new JTextField(10);
+
+    JComboBox<String> target =
+        new JComboBox<>(new String[]{"USD", "EUR"});
+
+    JLabel result = new JLabel(" ");
+
+    JButton convertButton = new JButton("Convert");
+
+    ConverterA() {
+
+        setTitle("Currency Converter");
+        setLayout(new FlowLayout());
+
+        add(new JLabel("INR"));
+        add(amount);
+        add(target);
+        add(convertButton);
+        add(result);
+
+        convertButton.addActionListener(this);
+
+        addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+
+        setSize(350, 150);
+        setVisible(true);
+    }
+
+    public void actionPerformed(ActionEvent e) {
+        convert();
+    }
+
+    void convert() {
+        try {
+            double value =
+                Double.parseDouble(amount.getText());
+
+            String currency =
+                (String) target.getSelectedItem();
+
+            double rate =
+                currency.equals("USD") ? 0.012 : 0.011;
+
+            double answer = value * rate;
+
+            result.setText(String.format("%.2f", answer));
+
+        } catch (NumberFormatException e) {
+            result.setText("Invalid amount");
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new ConverterA());
+    }
+}
+
+
+
+(b) Named inner class
+A separate named inner class handles the button event.
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+public class ConverterB extends JFrame {
+
+    JTextField amount = new JTextField(10);
+
+    JComboBox<String> target =
+        new JComboBox<>(new String[]{"USD", "EUR"});
+
+    JLabel result = new JLabel(" ");
+
+    ConverterB() {
+
+        setTitle("Currency Converter");
+        setLayout(new FlowLayout());
+
+        JButton convertButton = new JButton("Convert");
+
+        add(new JLabel("INR"));
+        add(amount);
+        add(target);
+        add(convertButton);
+        add(result);
+
+        convertButton.addActionListener(
+            new ConvertHandler());
+
+        addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+
+        setSize(350, 150);
+        setVisible(true);
+    }
+
+    class ConvertHandler implements ActionListener {
+
+        public void actionPerformed(ActionEvent e) {
+            convert();
+        }
+    }
+
+    void convert() {
+        try {
+            double value =
+                Double.parseDouble(amount.getText());
+
+            String currency =
+                (String) target.getSelectedItem();
+
+            double rate =
+                currency.equals("USD") ? 0.012 : 0.011;
+
+            result.setText(
+                String.format("%.2f", value * rate));
+
+        } catch (NumberFormatException e) {
+            result.setText("Invalid amount");
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new ConverterB());
+    }
+}
+
+
+
+(c) Anonymous inner class
+An anonymous class is created directly while registering the listener.
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+public class ConverterC extends JFrame {
+
+    JTextField amount = new JTextField(10);
+
+    JComboBox<String> target =
+        new JComboBox<>(new String[]{"USD", "EUR"});
+
+    JLabel result = new JLabel(" ");
+
+    ConverterC() {
+
+        setTitle("Currency Converter");
+        setLayout(new FlowLayout());
+
+        JButton convertButton = new JButton("Convert");
+
+        add(new JLabel("INR"));
+        add(amount);
+        add(target);
+        add(convertButton);
+        add(result);
+
+        convertButton.addActionListener(
+            new ActionListener() {
+
+                public void actionPerformed(ActionEvent e) {
+                    convert();
+                }
+            }
+        );
+
+        addWindowListener(new WindowAdapter() {
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+
+        setSize(350, 150);
+        setVisible(true);
+    }
+
+    void convert() {
+        try {
+            double value =
+                Double.parseDouble(amount.getText());
+
+            String currency =
+                (String) target.getSelectedItem();
+
+            double rate =
+                currency.equals("USD") ? 0.012 : 0.011;
+
+            result.setText(
+                String.format("%.2f", value * rate));
+
+        } catch (NumberFormatException e) {
+            result.setText("Invalid amount");
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new ConverterC());
+    }
+}
+
+
+
+(d) Lambda expression
+A lambda expression provides a short way to implement the listener.
+
+import java.awt.*;
+import java.awt.event.*;
+import javax.swing.*;
+
+public class ConverterD extends JFrame {
+
+    JTextField amount = new JTextField(10);
+
+    JComboBox<String> target =
+        new JComboBox<>(new String[]{"USD", "EUR"});
+
+    JLabel result = new JLabel(" ");
+
+    ConverterD() {
+
+        setTitle("Currency Converter");
+        setLayout(new FlowLayout());
+
+        JButton convertButton = new JButton("Convert");
+
+        add(new JLabel("INR"));
+        add(amount);
+        add(target);
+        add(convertButton);
+        add(result);
+
+        convertButton.addActionListener(e -> convert());
+
+        // Window closing
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+
+        setSize(350, 150);
+        setLocationRelativeTo(null);
+        setVisible(true);
+    }
+
+    void convert() {
+        try {
+            double value =
+                Double.parseDouble(amount.getText());
+
+            String currency =
+                (String) target.getSelectedItem();
+
+            double rate =
+                currency.equals("USD") ? 0.012 : 0.011;
+
+            result.setText(
+                String.format("%.2f", value * rate));
+
+        } catch (NumberFormatException e) {
+            result.setText("Invalid amount");
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new ConverterD());
+    }
+}
+
+
+
+Complete the Code – TODO 1 and TODO 2 (Lambda Version)
+The following is the completed version of the question's given Converter program. It uses one lambda listener for both the Convert button and Enter key.
+
+import java.awt.FlowLayout;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowAdapter;
+import java.awt.event.WindowEvent;
+import javax.swing.*;
+
+public class Converter extends JFrame {
+
+    private final JTextField amount = new JTextField(10);
+
+    private final JComboBox<String> target =
+        new JComboBox<>(new String[]{"USD", "EUR"});
+
+    private final JLabel result = new JLabel(" ");
+
+    private static double rate(String currency) {
+        return currency.equals("USD") ? 0.012 : 0.011;
+    }
+
+    public Converter() {
+
+        super("Currency Converter");
+
+        setLayout(new FlowLayout());
+
+        JButton convertButton = new JButton("Convert");
+
+        add(new JLabel("INR"));
+        add(amount);
+        add(target);
+        add(convertButton);
+        add(result);
+
+        // TODO 1: One lambda listener for both triggers
+        ActionListener convertAction = e -> convert();
+
+        convertButton.addActionListener(convertAction);
+        amount.addActionListener(convertAction);
+
+        // Window closing
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosing(WindowEvent e) {
+                dispose();
+            }
+        });
+
+        setDefaultCloseOperation(
+            JFrame.DO_NOTHING_ON_CLOSE);
+
+        pack();
+        setLocationRelativeTo(null);
+    }
+
+    private void convert() {
+
+        // TODO 2: Validate and display conversion
+        try {
+            double value =
+                Double.parseDouble(amount.getText().trim());
+
+            if (!Double.isFinite(value) || value < 0) {
+                throw new NumberFormatException();
+            }
+
+            String currency =
+                (String) target.getSelectedItem();
+
+            double converted = value * rate(currency);
+
+            String message = String.format(
+                "%.2f %s", converted, currency);
+
+            result.setText(message);
+
+            JOptionPane.showMessageDialog(
+                this,
+                "Converted Amount: " + message,
+                "Conversion Result",
+                JOptionPane.INFORMATION_MESSAGE
+            );
+
+        } catch (NumberFormatException e) {
+
+            result.setText("Invalid amount");
+
+            JOptionPane.showMessageDialog(
+                this,
+                "Invalid amount",
+                "Input Error",
+                JOptionPane.ERROR_MESSAGE
+            );
+        }
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new Converter().setVisible(true));
+    }
+}
+
+
+
+Explanation of TODO 1
+ActionListener convertAction = e -> convert();
+
+convertButton.addActionListener(convertAction);
+amount.addActionListener(convertAction);
+
+
+- One lambda listener is created.
+- Clicking Convert calls convert().
+- Pressing Enter in the amount field also calls convert().
+- The same listener is reused for both events.
+Explanation of TODO 2
+- Double.parseDouble() converts the entered amount into a number.
+- rate() returns the selected currency conversion rate.
+- String.format("%.2f", converted) displays two decimal places.
+- JOptionPane displays the result in a dialog.
+- If the amount is invalid, the program displays an error message.
+Expected output
+
+
+
+
+
+
+
+
+
+
+Valid conversion
+
+Example: 1000 INR to USD = 12.00 USD
+
+
+
+
+
+
+
+
+
+
+
+Invalid amount
+
+Example: Entering ABC displays Invalid amount.
+
+
+Illustrative output only. Capture the actual screenshots after running your Java program.
+How to execute
+Save as Converter.java.
+javac Converter.java
+java Converter
+
+
+Test these cases:
+Input	Currency	Expected result
+1000	USD	12.00 USD
+1000	EUR	11.00 EUR
+ABC	USD	Invalid amount
+Empty	EUR	Invalid amount
+-100	USD	Invalid amount
+
+Task 5.2 – Change the Requirement (2 Marks)
+New requirements:
+1. Convert when the user clicks the Convert button.
+2. Convert when the user presses Enter in the amount field.
+3. Display the conversion result in a dialog box.
+The conversion logic should be kept inside the convert() method. Only the event registration needs to change in each implementation.
+Style	Modification required
+(a) Frame implements ActionListener	Register this with both components and call convert() in actionPerformed().
+(b) Named inner class	Create one handler object and register it with both components.
+(c) Anonymous inner class	Store the anonymous listener in a variable and register it with both components.
+(d) Lambda expression	Store one lambda listener and register it with both components.
+
+Modification code for each style
+(a) Frame implements ActionListener
+convertButton.addActionListener(this);
+amount.addActionListener(this);
+
+public void actionPerformed(ActionEvent e) {
+    convert();
+}
+
+
+(b) Named inner class
+ConvertHandler handler = new ConvertHandler();
+
+convertButton.addActionListener(handler);
+amount.addActionListener(handler);
+
+
+(c) Anonymous inner class
+ActionListener handler = new ActionListener() {
+    public void actionPerformed(ActionEvent e) {
+        convert();
+    }
+};
+
+convertButton.addActionListener(handler);
+amount.addActionListener(handler);
+
+
+(d) Lambda expression
+ActionListener handler = e -> convert();
+
+convertButton.addActionListener(handler);
+amount.addActionListener(handler);
+
+
+For all four styles, modify the common convert() method to display the result using:
+JOptionPane.showMessageDialog(
+    this, "Converted Amount: " + message);
+
+
+For invalid input:
+JOptionPane.showMessageDialog(
+    this, "Invalid amount");
+
+
+Code change observation
+- Frame implementation: two listener registration lines added.
+- Named inner class: create one handler object and register it twice.
+- Anonymous class: store the listener in a variable and register it twice.
+- Lambda: create one lambda variable and register it twice.
+The conversion logic does not need to be duplicated.
+Task 5.3 – Compare the Styles (2 Marks)
+Comparison table
+Feature	Frame	Named inner	Anonymous inner	Lambda
+Readability	Moderate	Good	Good for short logic	Very good
+Access to frame fields	Direct	Direct	Direct	Direct
+Handler reuse	Reuse frame	Easy	Possible	Easy
+Code length	Moderate	Longer	Longer	Short
+Maintenance	Moderate	Good	Moderate	Good
+Separate handler class	No	Yes	No	No
+
+Explanation
+1. Frame implements ActionListener
+- The main frame handles the event.
+- Easy access to all frame fields.
+- Can make the class large when many buttons are used.
+2. Named inner class
+- The event-handling code has a separate name.
+- Can be reused for multiple components.
+- Suitable when event-handling logic is large.
+3. Anonymous inner class
+- Creates a listener directly where it is required.
+- Useful for small event-handling operations.
+- Reuse is less convenient unless the listener is stored in a variable.
+4. Lambda expression
+- Requires less code.
+- Easy to understand for simple event handling.
+- Suitable for small operations and multiple event registrations.
+Recommended
+ For a large application: I would use named handler classes or Swing Action objects because they separate event-handling logic from the GUI and support reuse. For simple applications, lambda expressions are easier and shorter.
+Alternative Concept and Complexity Analysis
+1. Method reference
+Instead of writing:
+convertButton.addActionListener(e -> convert());
+
+
+We can write:
+convertButton.addActionListener(this::convert);
+
+
+The method reference directly calls the convert() method when the event occurs.
+
+For both triggers:
+ActionListener handler = this::convert;
+
+convertButton.addActionListener(handler);
+amount.addActionListener(handler);
+
+
+2. Shared Swing Action
+A Swing Action can be reused by a button, menu item and keyboard shortcut.
+Action convertAction = new AbstractAction("Convert") {
+
+    public void actionPerformed(ActionEvent e) {
+        convert();
+    }
+};
+
+convertButton.setAction(convertAction);
+
+JMenuItem menuItem = new JMenuItem(convertAction);
+
+
+A keyboard shortcut can also be registered using InputMap and ActionMap.
+3. Comparison
+Feature	Four event styles	Method reference	Shared Swing Action
+Listener objects	Usually one per handler registration strategy	One shared listener	One shared Action
+Reuse	Depends on implementation	Easy	Very easy
+New button trigger	Register handler	Register handler	Attach same Action
+Menu item	Additional registration	Additional registration	Direct reuse
+Keyboard shortcut	Additional registration	Additional registration	ActionMap and InputMap
+Maintenance	Depends on style	Simple	Best for shared commands
+
+4. Time and space complexity
+Let k represent the number of event sources.
+
+Time complexity:
+- Each event is dispatched to its registered listener.
+- Event dispatch takes O(1) time with respect to the number of triggers.
+- Adding one new trigger requires O(1) registration work.
+- Registering the same handler with k components takes O(k) total setup time.
+Space complexity:
+- Separate listener objects: O(k) in the worst case.
+- One shared listener: O(1) listener storage, plus O(k) component registrations.
+- One shared Swing Action: O(1) Action object, plus O(k) component references or registrations.
+Conclusion: Method references reduce code for calling an existing method. A shared Swing Action is more suitable when the same command must work from buttons, menu items and keyboard shortcuts.
+
+Final Result
+The currency converter was implemented using four event-handling styles: frame implementation, named inner class, anonymous inner class and lambda expression. The application was modified to support both button clicks and Enter-key events. It displays the converted amount to two decimal places and handles invalid input using a dialog box. Lambda expressions are suitable for simple applications, while named handlers and shared Swing Actions are useful for larger applications.
