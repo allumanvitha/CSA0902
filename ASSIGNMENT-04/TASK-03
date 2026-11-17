@@ -1,0 +1,275 @@
+TASK 3 – FROM SKETCH TO LAYOUT
+Campus Library Search Screen – 9 Marks
+Task 3.1 – Choose the Layout Managers (3 Marks)
+The library search screen needs a layout that keeps the search row and bottom buttons at a fixed preferred size while allowing the results area to expand when the window is resized.
+Component / Container	Layout manager	Reason
+Main JFrame	BorderLayout	Divides the window into top, bottom, centre and other regions.
+Title panel	FlowLayout	Places the title at the top without stretching it unnecessarily.
+Search panel	FlowLayout	Keeps the text field, category choice and Search button in one row.
+Results panel	BorderLayout	Allows the results area to occupy the available centre space.
+Bottom panel	FlowLayout	Keeps Prev, Next and Reserve buttons together at the bottom.
+Status panel	FlowLayout	Displays the status message at the bottom.
+
+Why BorderLayout?
+- The centre region receives the extra space when the window grows.
+- The top and bottom regions retain their preferred heights.
+- The search and button panels keep their preferred component sizes.
+- The results area automatically becomes larger or smaller.
+Task 3.2 – Design the Nested Containers (2 Marks)
+Nested panel structure
+JFrame – Library Search Screen
+
+BorderLayout
+
+
+NORTH – Title Panel
+
+FlowLayout
+Campus Library Search
+
+Search Panel – PAGE_START
+
+FlowLayout
+Search text field
+Category
+Search
+
+
+CENTER – Results Panel
+
+BorderLayout
+Library search results area – expands on resize
+
+
+Bottom Panel – PAGE_END
+
+BorderLayout
+Prev
+Next
+Reserve
+
+
+Status: Ready
+
+
+Explanation: The main frame uses BorderLayout. The top contains the title and search panels, the centre contains the results area, and the bottom contains navigation buttons and the status message.
+Task 3.3 – Implement the Screen (3 Marks)
+Java Swing program
+
+Save the file as LibrarySearch.java.
+
+import javax.swing.*;
+import java.awt.*;
+
+public class LibrarySearch extends JFrame {
+
+    JTextField searchField;
+    JComboBox<String> category;
+    JButton searchButton;
+    JButton prevButton, nextButton, reserveButton;
+    JTextArea results;
+    JLabel status;
+
+    LibrarySearch() {
+
+        setTitle("Campus Library Search");
+        setSize(700, 500);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+        // Main layout
+        setLayout(new BorderLayout(5, 5));
+
+        // Title panel
+        JPanel titlePanel = new JPanel();
+        titlePanel.setLayout(new FlowLayout());
+        titlePanel.add(new JLabel("CAMPUS LIBRARY SEARCH"));
+
+        // Search panel
+        JPanel searchPanel = new JPanel();
+        searchPanel.setLayout(new FlowLayout());
+
+        searchField = new JTextField(20);
+
+        String items[] = {
+            "All", "Books", "Journals", "Articles"
+        };
+
+        category = new JComboBox<>(items);
+        searchButton = new JButton("Search");
+
+        searchPanel.add(searchField);
+        searchPanel.add(category);
+        searchPanel.add(searchButton);
+
+        // Top panel
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(titlePanel, BorderLayout.NORTH);
+        topPanel.add(searchPanel, BorderLayout.SOUTH);
+
+        // Results area
+        results = new JTextArea();
+        results.setEditable(false);
+        results.setText("Search results will appear here.");
+
+        JScrollPane scrollPane = new JScrollPane(results);
+
+        // Bottom navigation panel
+        JPanel buttonPanel = new JPanel();
+        buttonPanel.setLayout(new FlowLayout());
+
+        prevButton = new JButton("Prev");
+        nextButton = new JButton("Next");
+        reserveButton = new JButton("Reserve");
+
+        buttonPanel.add(prevButton);
+        buttonPanel.add(nextButton);
+        buttonPanel.add(reserveButton);
+
+        // Status message
+        status = new JLabel("Status: Ready");
+
+        // Bottom panel
+        JPanel bottomPanel = new JPanel(new BorderLayout());
+        bottomPanel.add(buttonPanel, BorderLayout.CENTER);
+        bottomPanel.add(status, BorderLayout.SOUTH);
+
+        // Add panels to main frame
+        add(topPanel, BorderLayout.NORTH);
+        add(scrollPane, BorderLayout.CENTER);
+        add(bottomPanel, BorderLayout.SOUTH);
+
+        // Search event
+        searchButton.addActionListener(e -> {
+            String text = searchField.getText();
+
+            if (text.trim().isEmpty()) {
+                status.setText("Status: Enter search text");
+            } else {
+                results.setText(
+                    "Searching for: " + text +
+                    "\nCategory: " + category.getSelectedItem()
+                );
+
+                status.setText("Status: Search completed");
+            }
+        });
+
+        // Previous button
+        prevButton.addActionListener(e ->
+            status.setText("Status: Previous page selected"));
+
+        // Next button
+        nextButton.addActionListener(e ->
+            status.setText("Status: Next page selected"));
+
+        // Reserve button
+        reserveButton.addActionListener(e ->
+            status.setText("Status: Reservation requested"));
+
+        setLocationRelativeTo(null);
+        setVisible(true);
+    }
+
+    public static void main(String[] args) {
+        SwingUtilities.invokeLater(() ->
+            new LibrarySearch());
+    }
+}
+
+
+
+Expected screen appearance
+
+
+
+
+
+
+
+
+github.com
+
+
+How to execute in VS Code
+1. Open VS Code.
+2. Create a file named LibrarySearch.java.
+3. Paste the above code.
+4. Open the terminal.
+5. Compile the program:
+javac LibrarySearch.java
+
+
+6. Run the program:
+java LibrarySearch
+
+
+Task 3.4 – Test the Resizing Behaviour (1 Mark)
+Test the program at three different window sizes.
+Test	Window size	Expected behaviour
+1	500 × 350	Results area becomes smaller; search and bottom rows remain visible.
+2	700 × 500	Normal layout with sufficient results space.
+3	1000 × 700	Results area expands; search and bottom controls retain their preferred sizes.
+
+Screenshots to capture
+Small
+
+500 × 350
+Capture the smaller window.
+
+Medium
+
+700 × 500
+Capture the normal window.
+
+Large
+
+1000 × 700
+Capture the expanded window.
+
+
+Explanation of the test:
+- Small size: Results area reduces in height and width.
+- Medium size: All components appear in their normal positions.
+- Large size: The results area receives the additional space.
+- The search row and bottom buttons remain at their preferred component sizes.
+The three screenshots must be captured from your actual running Java program. The sizes above are suggested test cases, not measured screenshots.
+Alternative Concept and Complexity Analysis
+1. Using GridBagLayout
+GridBagLayout is a flexible layout manager that arranges components in rows and columns.
+- It uses constraints to control the position and size of each component.
+- weightx and weighty decide how extra space is distributed.
+- The results area can use weightx = 1 and weighty = 1 to expand.
+- Search and bottom controls can keep their preferred sizes using suitable fill and weight settings.
+2. Using absolute positioning
+Absolute positioning uses:
+setLayout(null);
+
+searchField.setBounds(20, 50, 200, 30);
+searchButton.setBounds(230, 50, 100, 30);
+
+
+- Every component receives fixed x, y, width and height values.
+- Components do not automatically adjust when the window is resized.
+- Manual resize calculations are required.
+- It can cause overlapping or hidden components on different screen sizes.
+3. Comparison
+Feature	Nested BorderLayout and FlowLayout	GridBagLayout	Absolute positioning
+Resizing	Automatically adjusts centre	Adjusts using constraints	Requires manual adjustment
+Design	Simple	More complex	Simple initially
+Flexibility	Good	Very high	Low
+Layout calculation	Generally O(n)	Generally O(n)	No automatic layout calculation
+Maintenance	Easy	Moderate	Difficult
+Space	O(c)	O(c)	O(c)
+
+Here, c represents the number of GUI components.
+4. Layout computation time
+- BorderLayout and FlowLayout: They arrange components based on their preferred sizes and available space. Layout computation is generally O(n) for n components.
+- GridBagLayout: It processes component constraints and calculates positions and sizes. Its layout computation is generally O(n) for n components, with additional constraint-processing overhead.
+- Absolute positioning: It does not perform automatic layout calculations. Assigning bounds to n components takes O(n) time. If manual resizing is implemented, the resize handler must also update the component bounds.
+5. Space complexity
+- Nested layout design: O(c) for components and O(p) for p panels.
+- GridBagLayout: O(c) for components and their layout constraints.
+- Absolute positioning: O(c) for components and their stored bounds.
+Note: Layout manager objects and container objects also require memory. The exact memory usage depends on the implementation and number of components.
+Final Result
+The Campus Library Search Screen was designed and implemented using Java Swing. Nested BorderLayout and FlowLayout managers organise the title, search controls, results area, navigation buttons and status message. During resizing, the results area expands or shrinks while the other controls maintain their preferred sizes. The design is easier to maintain and more flexible than absolute positioning.
